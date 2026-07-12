@@ -3,8 +3,9 @@
 `codex-subagent-router` is an independent Python project for developing and
 validating model, effort, role, and context-routing policy for Codex subagents.
 
-The repository currently provides the stable policy seam. Hook protocol adapters
-and installation tooling are subsequent deliverables.
+The repository currently provides the stable policy seam and strict JSON value
+types for the `PreToolUse` and `SubagentStart` hook boundaries. Hook handlers and
+installation tooling are subsequent deliverables.
 
 ## Technology
 
@@ -39,8 +40,13 @@ Two profiles provide conditional escalation in ascending capability order:
 ## Public API
 
 ```python
+import sys
+
 from codex_subagent_router import (
+    PreToolUseDenyOutput,
     conditional_routes,
+    encode_hook_output,
+    parse_hook_input,
     routine_routes,
     validate_child_effort,
 )
@@ -48,7 +54,24 @@ from codex_subagent_router import (
 routine = routine_routes()
 conditional = conditional_routes()
 effort = validate_child_effort("high")
+
+hook_input = parse_hook_input(sys.stdin.read())
+denial_json = encode_hook_output(
+    PreToolUseDenyOutput(reason="explicit policy reason")
+)
 ```
+
+`parse_hook_input` accepts one JSON document and returns a typed
+`PreToolUseInput` or `SubagentStartInput`. It rejects unknown fields, missing or
+wrongly typed fields, duplicate keys, unsupported event and permission values,
+non-JSON numeric constants, and numeric overflow. `encode_hook_output` only emits
+the project-owned deny or subagent-context output shapes, whose string fields are
+validated when their value objects are constructed.
+
+Policy rationale and protocol evidence are documented in
+[`docs/routing-policy.md`](docs/routing-policy.md),
+[`docs/role-contracts.md`](docs/role-contracts.md), and
+[`docs/research/`](docs/research/).
 
 ## Development
 
@@ -69,8 +92,8 @@ uv build
 
 ## Delivery stages
 
-1. Stable routing policy and tests.
-2. Codex hook input and output protocol types.
+1. Stable routing policy and tests. **Complete.**
+2. Codex hook input and output protocol types. **Complete.**
 3. Deny-only `PreToolUse` validator.
 4. `SessionStart` routing guidance and `SubagentStart` role contracts.
 5. Isolated end-to-end hook probes.

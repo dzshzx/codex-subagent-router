@@ -29,16 +29,20 @@ git diff --check
 ## 架构与项目结构
 
 本仓库用于开发 Codex 子代理的 model、effort、role 和 context 路由策略。
-当前只交付稳定的 policy seam；hook 协议适配器、deny-only `PreToolUse`
-校验器、`SessionStart` / `SubagentStart` 角色契约和安装工具属于后续阶段。
-阶段划分见 `README.md`，范围契约见 `docs/initial-scope.md`。
+当前已交付稳定的 policy seam，以及 `PreToolUse` / `SubagentStart` 的严格
+JSON protocol seam；deny-only `PreToolUse` 校验器、start-context handlers、
+隔离探针和安装工具属于后续阶段。阶段划分见 `README.md`，范围契约见
+`docs/initial-scope.md`。
 
 - `src/codex_subagent_router/policy.py` 是唯一策略事实源。私有元组
   `_ROUTINE_ROUTES` 和 `_CONDITIONAL_ROUTES` 按能力升序排列，支持的
   child effort 集合从中派生；不得新增第二策略源或隐藏 fallback。
+- `src/codex_subagent_router/protocol.py` 是 hook wire boundary：严格解析
+  `PreToolUse` / `SubagentStart` 输入，并只编码项目支持的 deny 与 role-context
+  输出。它不承担 routing policy 或 handler 行为。
 - `src/codex_subagent_router/__init__.py` 是公共 API 边界，对外暴露
-  `Profile`、`PolicyViolation`、`routine_routes`、`conditional_routes`
-  和 `validate_child_effort`；存储细节保持私有。
+  policy 和 protocol value types、`parse_hook_input`、`encode_hook_output`；
+  存储与解析细节保持私有。
 - `tests/` 通过公共接口验证可观察行为。路由顺序由测试精确锁定，修改
   顺序即修改契约。
 
