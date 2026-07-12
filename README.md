@@ -3,8 +3,9 @@
 `codex-subagent-router` is an independent Python project for developing and
 validating model, effort, role, and context-routing policy for Codex subagents.
 
-The repository currently provides the stable policy seam and strict JSON value
-types for the `PreToolUse` and `SubagentStart` hook boundaries. Hook handlers and
+The repository currently provides the stable policy seam, strict JSON value
+types for the `PreToolUse` and `SubagentStart` hook boundaries, and deny-only
+validation for routed `spawn_agent` calls. Start-context handlers and
 installation tooling are subsequent deliverables.
 
 ## Technology
@@ -15,7 +16,7 @@ installation tooling are subsequent deliverables.
 - Ruff linting and formatting
 - Strict mypy type checking
 - `src/` package layout
-- JSON command adapters for Codex hooks in the next implementation stage
+- Pure hook handlers before command and installation adapters
 - Markdown role contracts and TOML installation metadata in later stages
 
 ## Automatic routing policy
@@ -43,12 +44,13 @@ Two profiles provide conditional escalation in ascending capability order:
 import sys
 
 from codex_subagent_router import (
-    PreToolUseDenyOutput,
+    PreToolUseInput,
     conditional_routes,
     encode_hook_output,
     parse_hook_input,
     routine_routes,
     validate_child_effort,
+    validate_pre_tool_use,
 )
 
 routine = routine_routes()
@@ -56,9 +58,10 @@ conditional = conditional_routes()
 effort = validate_child_effort("high")
 
 hook_input = parse_hook_input(sys.stdin.read())
-denial_json = encode_hook_output(
-    PreToolUseDenyOutput(reason="explicit policy reason")
-)
+if isinstance(hook_input, PreToolUseInput):
+    denial = validate_pre_tool_use(hook_input)
+    if denial is not None:
+        denial_json = encode_hook_output(denial)
 ```
 
 `parse_hook_input` accepts one JSON document and returns a typed
@@ -67,6 +70,11 @@ wrongly typed fields, duplicate keys, unsupported event and permission values,
 non-JSON numeric constants, and numeric overflow. `encode_hook_output` only emits
 the project-owned deny or subagent-context output shapes, whose string fields are
 validated when their value objects are constructed.
+
+`validate_pre_tool_use` ignores non-spawn tool calls. For verified spawn tool
+names, it requires the explicit V2 fields, validates the model/effort pair from
+the policy seam, permits only `fork_turns="none"` or a positive integer string,
+and returns either a deny value or `None`. It never rewrites tool input.
 
 Policy rationale and protocol evidence are documented in
 [`docs/routing-policy.md`](docs/routing-policy.md),
@@ -94,7 +102,7 @@ uv build
 
 1. Stable routing policy and tests. **Complete.**
 2. Codex hook input and output protocol types. **Complete.**
-3. Deny-only `PreToolUse` validator.
+3. Deny-only `PreToolUse` validator. **Complete.**
 4. `SessionStart` routing guidance and `SubagentStart` role contracts.
 5. Isolated end-to-end hook probes.
 6. User-level installation and rollback tooling.

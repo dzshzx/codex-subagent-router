@@ -1,4 +1,4 @@
-"""Public API for Codex subagent routing policy."""
+"""Public API for Codex subagent routing policy and hook handlers."""
 
 from .policy import (
     PolicyViolation,
@@ -17,6 +17,7 @@ from .protocol import (
     encode_hook_output,
     parse_hook_input,
 )
+from .validator import validate_pre_tool_use
 
 __all__ = (
     "PolicyViolation",
@@ -32,4 +33,5 @@ __all__ = (
     "parse_hook_input",
     "routine_routes",
     "validate_child_effort",
+    "validate_pre_tool_use",
 )

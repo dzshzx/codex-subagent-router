@@ -58,6 +58,34 @@ They are selection guidance, not promises about a particular task.
 - `SubagentStart` injects the stable contract for the resolved role. It does not
   select or validate compute.
 
+## `PreToolUse` validator contract
+
+The public validator accepts an already parsed `PreToolUseInput` and returns a
+`PreToolUseDenyOutput` or `None`. It performs no I/O and does not mutate the hook
+input.
+
+The validator recognizes the matching-tag `spawn_agent` name and `Agent` alias,
+plus the `agentsspawn_agent` name observed in the installed 0.144.1 probe. Other
+tool names are ignored without inspecting their inputs. Supporting another tool
+name requires new versioned evidence; substring matching inside the handler is
+not a fallback.
+
+For a recognized spawn, `tool_input` must be an object containing only:
+
+- required `message`, `task_name`, `agent_type`, `model`,
+  `reasoning_effort`, and `fork_turns` strings;
+- optional non-empty `service_tier` string.
+
+All required strings must be non-empty. The model/effort pair must equal one of
+the profiles returned by the policy seam. `fork_turns` must be exactly `none` or
+an ASCII positive integer string. Full-history `all` is denied because routed
+spawns provide explicit role and compute.
+
+This stage deliberately validates only that `agent_type` is explicit and
+non-empty. It does not own a role allowlist: managed role selection and context
+loading belong to the start-context stage, while Codex built-in or separately
+installed roles remain valid inputs to the routing validator.
+
 This separation is recorded in
 [`ADR-0001`](adr/0001-use-pretooluse-and-subagentstart.md) and
 [`ADR-0002`](adr/0002-separate-role-identity-from-compute.md).
