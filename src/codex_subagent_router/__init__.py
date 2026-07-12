@@ -2,7 +2,7 @@
 
 from .policy import (
     PolicyViolation,
-    Route,
+    Profile,
     conditional_routes,
     routine_routes,
     validate_child_effort,
@@ -10,7 +10,7 @@ from .policy import (
 
 __all__ = (
     "PolicyViolation",
-    "Route",
+    "Profile",
     "conditional_routes",
     "routine_routes",
     "validate_child_effort",

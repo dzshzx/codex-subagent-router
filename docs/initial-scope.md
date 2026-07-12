@@ -22,9 +22,10 @@ Codex configuration remains an installation concern.
 - Two conditional escalation profiles:
   - `gpt-5.6-sol / xhigh`
   - `gpt-5.6-sol / max`
-- Standard-library unit tests that exercise the public policy seam.
+- Pytest behavior tests that exercise the public policy seam.
 - Packaging metadata and contributor commands sufficient to run the checks from
   a fresh checkout with Python 3.11 or newer.
+- Reproducible development dependencies managed by `uv`.
 
 ## Boundaries
 
@@ -32,13 +33,14 @@ Codex configuration remains an installation concern.
 - Hook protocol handlers, role templates, installers, and release automation are
   subsequent deliverables.
 - Production Codex configuration is unchanged by repository setup or tests.
+- Runtime and development dependencies are selected when they provide a concrete
+  implementation or feedback benefit.
 
 ## Prohibitions
 
 - Child reasoning effort `ultra` is prohibited.
 - Tests must not read or modify `~/.codex`.
 - Repository code must not contain machine-specific absolute paths.
-- The initial package must not require third-party runtime or test dependencies.
 
 ## Acceptance criteria
 
@@ -48,5 +50,5 @@ Codex configuration remains an installation concern.
    routes in the documented order.
 4. The public policy seam accepts supported non-`ultra` efforts and rejects
    `ultra` and unknown effort names.
-5. The full standard-library test suite passes.
+5. Tests, lint, static typing, and package build checks pass through `uv`.
 6. The implementation is committed and reviewed against this scope.

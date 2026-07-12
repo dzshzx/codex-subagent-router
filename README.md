@@ -9,29 +9,32 @@ and installation tooling are subsequent deliverables.
 ## Technology
 
 - Python 3.11 or newer
-- Standard-library policy and tests
+- `uv` dependency and environment management
+- Pytest behavior tests
+- Ruff linting and formatting
+- Strict mypy type checking
 - `src/` package layout
 - JSON command adapters for Codex hooks in the next implementation stage
 - Markdown role contracts and TOML installation metadata in later stages
 
 ## Automatic routing policy
 
-Five routes cover routine work:
+Five profiles cover routine work in ascending capability order:
 
-| Route | Model | Effort | Intent |
-|---|---|---|---|
-| `bounded-economy` | `gpt-5.6-terra` | `medium` | Batch work with clear boundaries and quickly verifiable results |
-| `bounded-fast-quality` | `gpt-5.6-sol` | `low` | Interactive bounded work that needs stronger first-pass reliability |
-| `routine` | `gpt-5.6-terra` | `high` | Routine coding, research, and review |
-| `deep` | `gpt-5.6-sol` | `medium` | Cross-file work with multiple dependencies or sustained reasoning |
-| `critical` | `gpt-5.6-sol` | `high` | High-impact, high-error-cost, or long-horizon work |
+| Model | Effort |
+|---|---|
+| `gpt-5.6-terra` | `medium` |
+| `gpt-5.6-sol` | `low` |
+| `gpt-5.6-terra` | `high` |
+| `gpt-5.6-sol` | `medium` |
+| `gpt-5.6-sol` | `high` |
 
-Two routes provide conditional escalation:
+Two profiles provide conditional escalation in ascending capability order:
 
-| Route | Model | Effort | Intent |
-|---|---|---|---|
-| `escalate` | `gpt-5.6-sol` | `xhigh` | Critical work that needs higher reliability or has concrete failure evidence |
-| `ceiling` | `gpt-5.6-sol` | `max` | Work explicitly requiring the highest observed reliability |
+| Model | Effort |
+|---|---|
+| `gpt-5.6-sol` | `xhigh` |
+| `gpt-5.6-sol` | `max` |
 
 ## Public API
 
@@ -49,16 +52,19 @@ effort = validate_child_effort("high")
 
 ## Development
 
-Run the complete zero-dependency test suite:
+Create or update the development environment:
 
 ```bash
-PYTHONPATH=src python3 -m unittest discover -s tests -v
+uv sync --dev
 ```
 
-Compile every Python source file:
+Run all checks:
 
 ```bash
-python3 -m compileall -q src tests
+uv run pytest
+uv run ruff check .
+uv run mypy
+uv build
 ```
 
 ## Delivery stages
