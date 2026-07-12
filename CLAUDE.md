@@ -39,3 +39,17 @@ uv build                      # 打包检查
 - 只通过公共包接口测试可观察行为；期望值使用与书面策略独立的字面量（不要从实现导入常量来构造期望值）。
 - 每个新行为先加一个聚焦测试再实现。
 - 本仓库自有代码不使用 mock。
+
+## Agent skills
+
+### Issue tracker
+
+Issue 以 markdown 文件形式放在仓库内 `.scratch/<feature>/` 下（local-markdown tracker）。See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+使用五个默认 triage 标签：needs-triage、needs-info、ready-for-agent、ready-for-human、wontfix。See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context 布局：根目录 `CONTEXT.md` + `docs/adr/`。See `docs/agents/domain.md`.
