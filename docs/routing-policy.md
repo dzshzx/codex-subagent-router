@@ -67,10 +67,10 @@ The public validator accepts an already parsed `PreToolUseInput` and returns a
 input.
 
 The validator recognizes the matching-tag `spawn_agent` name and `Agent` alias,
-plus the `agentsspawn_agent` name observed in the installed 0.144.1 probe. Other
-tool names are ignored without inspecting their inputs. Supporting another tool
-name requires new versioned evidence; substring matching inside the handler is
-not a fallback.
+plus the `agentsspawn_agent` and `collaborationspawn_agent` names observed in
+installed 0.144.1 probes. Other tool names are ignored without inspecting their
+inputs. Supporting another tool name requires new versioned evidence; substring
+matching inside the handler is not a fallback.
 
 For a recognized spawn, `tool_input` must be an object containing only:
 

@@ -89,7 +89,10 @@ def test_non_spawn_tool_is_ignored_without_inspecting_its_input() -> None:
     assert validate_pre_tool_use(hook_input) is None
 
 
-@pytest.mark.parametrize("tool_name", ("Agent", "agentsspawn_agent"))
+@pytest.mark.parametrize(
+    "tool_name",
+    ("Agent", "agentsspawn_agent", "collaborationspawn_agent"),
+)
 def test_verified_spawn_tool_names_use_the_same_validator(tool_name: str) -> None:
     hook_input = _pre_tool_use("not-an-object", tool_name=tool_name)
 

@@ -1,5 +1,10 @@
 """Public API for Codex subagent routing policy and hook handlers."""
 
+from .document_handlers import (
+    handle_pre_tool_use_document,
+    handle_session_start_document,
+    handle_subagent_start_document,
+)
 from .policy import (
     PolicyViolation,
     Profile,
@@ -39,6 +44,9 @@ __all__ = (
     "SubagentStartOutput",
     "conditional_routes",
     "encode_hook_output",
+    "handle_pre_tool_use_document",
+    "handle_session_start_document",
+    "handle_subagent_start_document",
     "parse_hook_input",
     "role_contracts",
     "routine_routes",

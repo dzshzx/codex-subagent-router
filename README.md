@@ -6,8 +6,9 @@ validating model, effort, role, and context-routing policy for Codex subagents.
 The repository currently provides the stable policy seam; strict JSON value
 types for the `PreToolUse`, `SessionStart`, and `SubagentStart` hook boundaries;
 and deny-only validation for routed `spawn_agent` calls. Root-session routing
-guidance and managed subagent role-context handlers are also available. Isolated
-probes and installation tooling are subsequent deliverables.
+guidance, managed subagent role-context handlers, and executable JSON command
+adapters are also available. The command path has been verified against an
+isolated Codex CLI `0.144.1`; installation tooling is the remaining deliverable.
 
 ## Technology
 
@@ -50,6 +51,9 @@ from codex_subagent_router import (
     SubagentStartInput,
     conditional_routes,
     encode_hook_output,
+    handle_pre_tool_use_document,
+    handle_session_start_document,
+    handle_subagent_start_document,
     parse_hook_input,
     role_contracts,
     routine_routes,
@@ -95,6 +99,20 @@ injects a fixed developer contract for `researcher`, `reviewer`,
 `architecture_explorer`, or `interface_designer`. Built-in and other unmanaged
 roles are left unchanged.
 
+The three `handle_*_document` adapters compose parsing, the matching pure
+handler, and output encoding. They return an empty string when Codex should
+receive no hook output and raise `ProtocolViolation` for malformed or
+wrong-event documents. The thin command boundary is executable as:
+
+```bash
+python -m codex_subagent_router.commands pre-tool-use
+python -m codex_subagent_router.commands session-start
+python -m codex_subagent_router.commands subagent-start
+```
+
+Each command reads one JSON document from stdin. Success exits `0`; protocol
+errors are written to stderr and exit `1`; command usage errors exit `2`.
+
 Policy rationale and protocol evidence are documented in
 [`docs/routing-policy.md`](docs/routing-policy.md),
 [`docs/role-contracts.md`](docs/role-contracts.md), and
@@ -123,7 +141,7 @@ uv build
 2. Codex hook input and output protocol types. **Complete.**
 3. Deny-only `PreToolUse` validator. **Complete.**
 4. `SessionStart` routing guidance and `SubagentStart` role contracts. **Complete.**
-5. Isolated end-to-end hook probes.
+5. Isolated end-to-end hook probes. **Complete.**
 6. User-level installation and rollback tooling.
 
 ## Prohibitions

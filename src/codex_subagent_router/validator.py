@@ -14,6 +14,7 @@ _SPAWN_AGENT_TOOL_NAMES = frozenset(
     {
         "Agent",
         "agentsspawn_agent",
+        "collaborationspawn_agent",
         "spawn_agent",
     }
 )

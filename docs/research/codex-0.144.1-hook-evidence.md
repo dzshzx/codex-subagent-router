@@ -137,10 +137,12 @@ per-spawn compute selection.
 ## Matcher facts
 
 The matching-tag source exposes canonical `spawn_agent` and alias `Agent`.
-However, an isolated probe of the installed `0.144.1` binary observed the
-namespaced form `agentsspawn_agent`. A deployment matcher therefore needs a
-compatibility shape such as `^(Agent|.*spawn_agent.*)$`, followed by an exact
-tool-name check inside the handler. Every Codex upgrade must repeat this probe.
+Isolated probes of the installed `0.144.1` binary observed two flattened
+namespaced forms at different points in development: `agentsspawn_agent` and,
+in the final executable-handler probe, `collaborationspawn_agent`. A deployment
+matcher therefore needs a compatibility shape such as
+`^(Agent|.*spawn_agent.*)$`, followed by an exact allowlist check inside the
+handler. Every Codex upgrade must repeat this probe.
 
 Multiple matching command hooks run concurrently. If more than one
 `PreToolUse` hook returns a replacement input, the last one to complete wins and
@@ -173,6 +175,46 @@ The following probes ran with the installed Codex CLI `0.144.1` and a temporary,
 isolated `CODEX_HOME`. They did not read or modify production Codex
 configuration. Hook trust was bypassed only inside the disposable environment so
 that the protocol behavior could be observed before designing installation.
+
+### Executable command adapters
+
+The final stage-5 probes ran on 2026-07-13 with:
+
+- installed `codex-cli 0.144.1`;
+- a new temporary `CODEX_HOME` containing a copied authentication snapshot,
+  fresh `config.toml`, and fresh `hooks.json`;
+- an empty temporary working directory;
+- `--ephemeral`, `--ignore-rules`, `--skip-git-repo-check`, and
+  `--dangerously-bypass-hook-trust`;
+- the repository's `python -m codex_subagent_router.commands` adapters as the
+  only configured command hooks.
+
+The authentication snapshot was copied without displaying its contents. No
+normal user configuration, hook configuration, rules, session history, or
+project configuration was copied or modified. The temporary configuration
+declared `reviewer` by description only and enabled the native hooks and
+multi-agent features. The temporary home and working directory, including the
+authentication snapshot, were removed after the evidence below was extracted.
+
+| Probe | Observed result |
+|---|---|
+| Root `SessionStart(startup)` | The first model response was exactly `Child effort ultra is prohibited.`, a sentence present only in the injected routing guidance. |
+| Deny before child creation | A complete `collaborationspawn_agent` call requesting `gpt-5.6-sol / ultra` was blocked with `child reasoning effort 'ultra' is prohibited`; no child-start or wait path followed. |
+| Managed `SubagentStart` | A real `reviewer` child returned exactly `You are the reviewer for one bounded, read-only diff axis.`, the first sentence of its injected contract. |
+| Unmanaged `SubagentStart` | A real built-in `worker` child returned `UNMANAGED`; the captured start input identified `agent_type: worker`, for which the adapter emits no output. |
+| Hook failure visibility | Deliberately routing `SessionStart` into the wrong document adapter produced `hook: SessionStart Failed` in normal Codex CLI output while the root turn continued. The adapter's process test separately locks the specific stderr protocol diagnostic and exit code `1`. |
+
+The first deny attempt exposed a compatibility defect: the validator did not
+recognize `collaborationspawn_agent`, so an `ultra` child was initially allowed.
+The captured `PreToolUse` input established the canonical installed-binary name;
+a failing regression test was added before the allowlist was corrected. The
+same probe then blocked the call before child creation. This is why the
+installed-binary probe is a release gate rather than documentation-only
+research.
+
+Codex encrypts the `message` field before it reaches this `PreToolUse` hook. The
+validator deliberately checks only that this required field is a non-empty
+string; it does not need or attempt to inspect message contents.
 
 ### Description-only role and child context
 
