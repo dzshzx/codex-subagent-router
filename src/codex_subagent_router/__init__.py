@@ -12,11 +12,16 @@ from .protocol import (
     PreToolUseDenyOutput,
     PreToolUseInput,
     ProtocolViolation,
+    SessionSource,
+    SessionStartInput,
+    SessionStartOutput,
     SubagentStartInput,
     SubagentStartOutput,
     encode_hook_output,
     parse_hook_input,
 )
+from .roles import RoleContract, role_contracts
+from .start_context import session_start_context, subagent_start_context
 from .validator import validate_pre_tool_use
 
 __all__ = (
@@ -26,12 +31,19 @@ __all__ = (
     "PreToolUseDenyOutput",
     "PreToolUseInput",
     "ProtocolViolation",
+    "RoleContract",
+    "SessionSource",
+    "SessionStartInput",
+    "SessionStartOutput",
     "SubagentStartInput",
     "SubagentStartOutput",
     "conditional_routes",
     "encode_hook_output",
     "parse_hook_input",
+    "role_contracts",
     "routine_routes",
+    "session_start_context",
+    "subagent_start_context",
     "validate_child_effort",
     "validate_pre_tool_use",
 )

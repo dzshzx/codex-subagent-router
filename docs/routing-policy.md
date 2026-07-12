@@ -55,8 +55,10 @@ They are selection guidance, not promises about a particular task.
 - `PreToolUse` validates the explicit spawn against policy and denies invalid
   calls before child creation.
 - `PreToolUse` does not silently rewrite a model, effort, role, or fork mode.
+- `SessionStart` emits parent routing guidance only for root `startup`. The
+  guidance is derived from the executable route and managed-role sources.
 - `SubagentStart` injects the stable contract for the resolved role. It does not
-  select or validate compute.
+  select or validate compute, and it emits no output for unmanaged roles.
 
 ## `PreToolUse` validator contract
 

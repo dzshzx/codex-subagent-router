@@ -76,6 +76,19 @@ mode.
 
 [Official generated input schema](https://github.com/openai/codex/blob/rust-v0.144.1/codex-rs/hooks/schema/generated/subagent-start.command.input.schema.json)
 
+### `SessionStart` input
+
+Required fields are `session_id`, nullable `transcript_path`, `cwd`,
+`hook_event_name`, `model`, `permission_mode`, and `source`. Unlike turn-scoped
+and subagent-start inputs, it has no `turn_id`. The source is exactly one of
+`startup`, `resume`, `clear`, or `compact`.
+
+The corresponding hook-specific output uses `hookEventName: "SessionStart"`
+and an optional string `additionalContext`.
+
+- [Official generated input schema](https://github.com/openai/codex/blob/rust-v0.144.1/codex-rs/hooks/schema/generated/session-start.command.input.schema.json)
+- [Official generated output schema](https://github.com/openai/codex/blob/rust-v0.144.1/codex-rs/hooks/schema/generated/session-start.command.output.schema.json)
+
 ### Outputs used by this project
 
 A deny-only `PreToolUse` handler returns:

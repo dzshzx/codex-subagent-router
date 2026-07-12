@@ -49,6 +49,8 @@ _CONDITIONAL_ROUTES = (
     ),
 )
 
+_PROHIBITED_CHILD_EFFORT = "ultra"
+
 _SUPPORTED_CHILD_EFFORTS = frozenset(
     profile.effort for profile in _ROUTINE_ROUTES + _CONDITIONAL_ROUTES
 )
@@ -66,8 +68,20 @@ def conditional_routes() -> tuple[Profile, ...]:
 
 def validate_child_effort(effort: str) -> str:
     """Return a supported child effort or raise a clear policy error."""
-    if effort == "ultra":
-        raise PolicyViolation("child reasoning effort 'ultra' is prohibited")
+    if effort == _PROHIBITED_CHILD_EFFORT:
+        raise PolicyViolation(
+            f"child reasoning effort {_PROHIBITED_CHILD_EFFORT!r} is prohibited"
+        )
     if effort not in _SUPPORTED_CHILD_EFFORTS:
         raise PolicyViolation(f"unsupported child reasoning effort: {effort}")
     return effort
+
+
+def routing_guidance_rules() -> tuple[str, ...]:
+    """Return parent-facing selection rules derived from routing policy."""
+    conditional_efforts = " or ".join(profile.effort for profile in _CONDITIONAL_ROUTES)
+    return (
+        "Use the lowest credible routine profile.",
+        f"Escalate to {conditional_efforts} only when the task requires it.",
+        f"Child effort {_PROHIBITED_CHILD_EFFORT} is prohibited.",
+    )

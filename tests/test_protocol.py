@@ -7,6 +7,9 @@ from codex_subagent_router import (
     PreToolUseDenyOutput,
     PreToolUseInput,
     ProtocolViolation,
+    SessionSource,
+    SessionStartInput,
+    SessionStartOutput,
     SubagentStartInput,
     SubagentStartOutput,
     encode_hook_output,
@@ -81,6 +84,29 @@ def test_subagent_start_input_is_parsed_from_its_public_json_contract() -> None:
         cwd="/workspace/project",
         model="gpt-5.6-sol",
         permission_mode=PermissionMode.DONT_ASK,
+    )
+
+
+def test_session_start_input_is_parsed_from_its_public_json_contract() -> None:
+    document = """{
+        "session_id": "session-3",
+        "transcript_path": null,
+        "cwd": "/workspace/project",
+        "hook_event_name": "SessionStart",
+        "model": "gpt-5.6-sol",
+        "permission_mode": "default",
+        "source": "startup"
+    }"""
+
+    actual = parse_hook_input(document)
+
+    assert actual == SessionStartInput(
+        session_id="session-3",
+        transcript_path=None,
+        cwd="/workspace/project",
+        model="gpt-5.6-sol",
+        permission_mode=PermissionMode.DEFAULT,
+        source=SessionSource.STARTUP,
     )
 
 
@@ -185,6 +211,26 @@ def test_subagent_start_context_is_encoded_as_the_supported_wire_contract() -> N
         '{"hookSpecificOutput":{"hookEventName":"SubagentStart",'
         '"additionalContext":"Review one bounded axis and do not edit files."}}'
     )
+
+
+def test_session_start_context_is_encoded_as_the_supported_wire_contract() -> None:
+    output = SessionStartOutput(
+        additional_context="Choose an explicit routed profile for each child."
+    )
+
+    actual = encode_hook_output(output)
+
+    assert actual == (
+        '{"hookSpecificOutput":{"hookEventName":"SessionStart",'
+        '"additionalContext":"Choose an explicit routed profile for each child."}}'
+    )
+
+
+def test_unknown_hook_output_type_is_rejected_without_an_event_fallback() -> None:
+    output = cast(SessionStartOutput, object())
+
+    with pytest.raises(ProtocolViolation, match="unsupported hook output type: object"):
+        encode_hook_output(output)
 
 
 def test_subagent_start_context_must_not_be_empty() -> None:

@@ -3,13 +3,20 @@
 ## Purpose
 
 Role identity expresses a stable kind of work. Model and reasoning effort are
-selected independently for each spawn through the routing policy. These
-contracts are the project-owned behavior source for `SubagentStart` context and
-must not duplicate compute choices.
+selected independently for each spawn through the routing policy.
+`src/codex_subagent_router/roles.py` is the single executable source for the
+ordered contracts and `SubagentStart` developer context. This document explains
+that source and must not introduce alternative runtime wording or compute
+choices.
 
 The minimum managed role set is `researcher`, `reviewer`,
 `architecture_explorer`, and `interface_designer`. Built-in Codex roles remain
 outside this managed set and must not be overridden accidentally.
+
+`subagent_start_context()` selects contracts by exact `agent_type`. It returns
+no output for built-in or other unmanaged roles; it never substitutes a default
+managed role. `role_contracts()` exposes the frozen declarations for later
+description-only installation metadata.
 
 ## `researcher`
 

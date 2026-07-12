@@ -14,6 +14,11 @@ request. Codex 0.144.1 exposes these abilities at different lifecycle events.
 Use one `PreToolUse` handler for deny-only spawn policy validation and one
 `SubagentStart` handler for role-context selection.
 
+Use an additional `SessionStart` handler matched only to root `startup` as a
+parent-facing guidance layer. It renders the current route and managed-role
+sources rather than owning another route table. Calls for resume, clear, or
+compact produce no output.
+
 The parent remains responsible for choosing explicit role, model, effort, and
 context. `PreToolUse` rejects invalid input and never silently rewrites it.
 `SubagentStart` selects a fixed role contract from the resolved `agent_type` and
@@ -27,6 +32,8 @@ protocol boundary rejects unknown fields and wrong event discriminators.
 - Invalid spawns can be stopped before a child exists when the hook runs
   successfully.
 - Role context reaches the child's first request as developer context.
+- Root startup receives an exact view of the current managed roles and compute
+  ladder without duplicating their executable sources.
 - Routing validation and role behavior do not race as concurrent input rewrites.
 - `SubagentStart` failures allow a child to continue without injected context.
 - Command-hook failures are fail-open, so the validator is a guardrail rather

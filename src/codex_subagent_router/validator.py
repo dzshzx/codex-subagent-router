@@ -17,18 +17,30 @@ _SPAWN_AGENT_TOOL_NAMES = frozenset(
         "spawn_agent",
     }
 )
-_SPAWN_AGENT_FIELDS = frozenset(
-    {
-        "agent_type",
-        "fork_turns",
-        "message",
-        "model",
-        "reasoning_effort",
-        "service_tier",
-        "task_name",
-    }
+_ROUTED_SPAWN_GUIDANCE_FIELDS = (
+    "agent_type",
+    "model",
+    "reasoning_effort",
+    "fork_turns",
 )
-_REQUIRED_SPAWN_AGENT_FIELDS = _SPAWN_AGENT_FIELDS - {"service_tier"}
+_REQUIRED_SPAWN_AGENT_FIELDS = frozenset(
+    ("message", "task_name", *_ROUTED_SPAWN_GUIDANCE_FIELDS)
+)
+_SPAWN_AGENT_FIELDS = _REQUIRED_SPAWN_AGENT_FIELDS | {"service_tier"}
+_INDEPENDENT_FORK_TURNS = "none"
+
+
+def routed_spawn_guidance_rules() -> tuple[str, ...]:
+    """Return parent-facing rules owned by spawn validation."""
+    *leading_fields, final_field = _ROUTED_SPAWN_GUIDANCE_FIELDS
+    explicit_fields = f"{', '.join(leading_fields)}, and {final_field}"
+    return (
+        f"Choose every routed child explicitly with {explicit_fields}.",
+        f'Use fork_turns="{_INDEPENDENT_FORK_TURNS}" for independent work or a '
+        "positive integer string for limited recent context; do not use "
+        "full-history all with explicit routing.",
+        "Do not omit routed fields or silently rewrite them.",
+    )
 
 
 def validate_pre_tool_use(
@@ -86,7 +98,7 @@ def validate_pre_tool_use(
         and fork_turns.isdigit()
         and any(digit != "0" for digit in fork_turns)
     )
-    if fork_turns != "none" and not is_positive_integer:
+    if fork_turns != _INDEPENDENT_FORK_TURNS and not is_positive_integer:
         return PreToolUseDenyOutput(
             reason="fork_turns must be 'none' or a positive integer string"
         )

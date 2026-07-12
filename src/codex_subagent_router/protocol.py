@@ -9,10 +9,9 @@ from typing import NoReturn, TypeAlias, cast
 JsonScalar: TypeAlias = None | bool | int | float | str
 JsonValue: TypeAlias = JsonScalar | list["JsonValue"] | dict[str, "JsonValue"]
 
-_COMMON_INPUT_FIELDS = frozenset(
+_BASE_INPUT_FIELDS = frozenset(
     {
         "session_id",
-        "turn_id",
         "transcript_path",
         "cwd",
         "hook_event_name",
@@ -20,14 +19,19 @@ _COMMON_INPUT_FIELDS = frozenset(
         "permission_mode",
     }
 )
-_PRE_TOOL_USE_INPUT_FIELDS = _COMMON_INPUT_FIELDS | {
+_TURN_SCOPED_INPUT_FIELDS = _BASE_INPUT_FIELDS | {"turn_id"}
+_PRE_TOOL_USE_INPUT_FIELDS = _TURN_SCOPED_INPUT_FIELDS | {
     "agent_id",
     "agent_type",
     "tool_name",
     "tool_input",
     "tool_use_id",
 }
-_SUBAGENT_START_INPUT_FIELDS = _COMMON_INPUT_FIELDS | {"agent_id", "agent_type"}
+_SUBAGENT_START_INPUT_FIELDS = _TURN_SCOPED_INPUT_FIELDS | {
+    "agent_id",
+    "agent_type",
+}
+_SESSION_START_INPUT_FIELDS = _BASE_INPUT_FIELDS | {"source"}
 
 
 class ProtocolViolation(ValueError):
@@ -42,6 +46,15 @@ class PermissionMode(StrEnum):
     PLAN = "plan"
     DONT_ASK = "dontAsk"
     BYPASS_PERMISSIONS = "bypassPermissions"
+
+
+class SessionSource(StrEnum):
+    """Sources emitted by Codex 0.144.1 ``SessionStart`` inputs."""
+
+    STARTUP = "startup"
+    RESUME = "resume"
+    CLEAR = "clear"
+    COMPACT = "compact"
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,7 +88,26 @@ class SubagentStartInput:
     permission_mode: PermissionMode
 
 
-HookInput: TypeAlias = PreToolUseInput | SubagentStartInput
+@dataclass(frozen=True, slots=True)
+class SessionStartInput:
+    """Validated input for a Codex ``SessionStart`` command hook."""
+
+    session_id: str
+    transcript_path: str | None
+    cwd: str
+    model: str
+    permission_mode: PermissionMode
+    source: SessionSource
+
+
+HookInput: TypeAlias = PreToolUseInput | SubagentStartInput | SessionStartInput
+
+
+def _validate_additional_context(value: object) -> None:
+    if not isinstance(value, str):
+        raise ProtocolViolation("additional context must be a string")
+    if not value.strip():
+        raise ProtocolViolation("additional context must not be empty")
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,13 +130,20 @@ class SubagentStartOutput:
     additional_context: str
 
     def __post_init__(self) -> None:
-        if not isinstance(self.additional_context, str):
-            raise ProtocolViolation("additional context must be a string")
-        if not self.additional_context.strip():
-            raise ProtocolViolation("additional context must not be empty")
+        _validate_additional_context(self.additional_context)
 
 
-HookOutput: TypeAlias = PreToolUseDenyOutput | SubagentStartOutput
+@dataclass(frozen=True, slots=True)
+class SessionStartOutput:
+    """Routing guidance emitted before a root session's first request."""
+
+    additional_context: str
+
+    def __post_init__(self) -> None:
+        _validate_additional_context(self.additional_context)
+
+
+HookOutput: TypeAlias = PreToolUseDenyOutput | SubagentStartOutput | SessionStartOutput
 
 
 def parse_hook_input(document: str) -> HookInput:
@@ -124,13 +163,14 @@ def parse_hook_input(document: str) -> HookInput:
     _validate_json_value(value)
     fields = _require_object(value)
     event_name = _require_string(fields, "hook_event_name")
-    if event_name not in {"PreToolUse", "SubagentStart"}:
+    if event_name not in {"PreToolUse", "SessionStart", "SubagentStart"}:
         raise ProtocolViolation(f"unsupported hook_event_name: {event_name}")
-    allowed_fields = (
-        _PRE_TOOL_USE_INPUT_FIELDS
-        if event_name == "PreToolUse"
-        else _SUBAGENT_START_INPUT_FIELDS
-    )
+    if event_name == "PreToolUse":
+        allowed_fields = _PRE_TOOL_USE_INPUT_FIELDS
+    elif event_name == "SubagentStart":
+        allowed_fields = _SUBAGENT_START_INPUT_FIELDS
+    else:
+        allowed_fields = _SESSION_START_INPUT_FIELDS
     _reject_unknown_fields(fields, allowed_fields)
 
     permission_mode_value = _require_string(fields, "permission_mode")
@@ -140,6 +180,23 @@ def parse_hook_input(document: str) -> HookInput:
         raise ProtocolViolation(
             f"unsupported permission_mode: {permission_mode_value}"
         ) from error
+
+    if event_name == "SessionStart":
+        source_value = _require_string(fields, "source")
+        try:
+            source = SessionSource(source_value)
+        except ValueError as error:
+            raise ProtocolViolation(
+                f"unsupported SessionStart source: {source_value}"
+            ) from error
+        return SessionStartInput(
+            session_id=_require_string(fields, "session_id"),
+            transcript_path=_require_nullable_string(fields, "transcript_path"),
+            cwd=_require_string(fields, "cwd"),
+            model=_require_string(fields, "model"),
+            permission_mode=permission_mode,
+            source=source,
+        )
 
     if event_name == "SubagentStart":
         return SubagentStartInput(
@@ -176,11 +233,20 @@ def encode_hook_output(output: HookOutput) -> str:
             "permissionDecision": "deny",
             "permissionDecisionReason": output.reason,
         }
-    else:
+    elif isinstance(output, SubagentStartOutput):
         hook_specific_output = {
             "hookEventName": "SubagentStart",
             "additionalContext": output.additional_context,
         }
+    elif isinstance(output, SessionStartOutput):
+        hook_specific_output = {
+            "hookEventName": "SessionStart",
+            "additionalContext": output.additional_context,
+        }
+    else:
+        raise ProtocolViolation(
+            f"unsupported hook output type: {type(output).__name__}"
+        )
     payload: JsonValue = {
         "hookSpecificOutput": hook_specific_output,
     }

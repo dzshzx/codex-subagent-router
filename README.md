@@ -3,10 +3,11 @@
 `codex-subagent-router` is an independent Python project for developing and
 validating model, effort, role, and context-routing policy for Codex subagents.
 
-The repository currently provides the stable policy seam, strict JSON value
-types for the `PreToolUse` and `SubagentStart` hook boundaries, and deny-only
-validation for routed `spawn_agent` calls. Start-context handlers and
-installation tooling are subsequent deliverables.
+The repository currently provides the stable policy seam; strict JSON value
+types for the `PreToolUse`, `SessionStart`, and `SubagentStart` hook boundaries;
+and deny-only validation for routed `spawn_agent` calls. Root-session routing
+guidance and managed subagent role-context handlers are also available. Isolated
+probes and installation tooling are subsequent deliverables.
 
 ## Technology
 
@@ -45,10 +46,15 @@ import sys
 
 from codex_subagent_router import (
     PreToolUseInput,
+    SessionStartInput,
+    SubagentStartInput,
     conditional_routes,
     encode_hook_output,
     parse_hook_input,
+    role_contracts,
     routine_routes,
+    session_start_context,
+    subagent_start_context,
     validate_child_effort,
     validate_pre_tool_use,
 )
@@ -62,19 +68,32 @@ if isinstance(hook_input, PreToolUseInput):
     denial = validate_pre_tool_use(hook_input)
     if denial is not None:
         denial_json = encode_hook_output(denial)
+elif isinstance(hook_input, SessionStartInput):
+    context = session_start_context(hook_input)
+elif isinstance(hook_input, SubagentStartInput):
+    context = subagent_start_context(hook_input)
+
+managed_roles = role_contracts()
 ```
 
 `parse_hook_input` accepts one JSON document and returns a typed
-`PreToolUseInput` or `SubagentStartInput`. It rejects unknown fields, missing or
-wrongly typed fields, duplicate keys, unsupported event and permission values,
-non-JSON numeric constants, and numeric overflow. `encode_hook_output` only emits
-the project-owned deny or subagent-context output shapes, whose string fields are
-validated when their value objects are constructed.
+`PreToolUseInput`, `SessionStartInput`, or `SubagentStartInput`. It rejects
+unknown fields, missing or wrongly typed fields, duplicate keys, unsupported
+event and permission values, non-JSON numeric constants, and numeric overflow.
+`encode_hook_output` only emits the project-owned deny, root-session guidance,
+or subagent-context output shapes, whose string fields are validated when their
+value objects are constructed.
 
 `validate_pre_tool_use` ignores non-spawn tool calls. For verified spawn tool
 names, it requires the explicit V2 fields, validates the model/effort pair from
 the policy seam, permits only `fork_turns="none"` or a positive integer string,
 and returns either a deny value or `None`. It never rewrites tool input.
+
+`session_start_context` emits routing guidance only for a root `startup`; the
+text is derived from the executable route and role sources. `subagent_start_context`
+injects a fixed developer contract for `researcher`, `reviewer`,
+`architecture_explorer`, or `interface_designer`. Built-in and other unmanaged
+roles are left unchanged.
 
 Policy rationale and protocol evidence are documented in
 [`docs/routing-policy.md`](docs/routing-policy.md),
@@ -103,7 +122,7 @@ uv build
 1. Stable routing policy and tests. **Complete.**
 2. Codex hook input and output protocol types. **Complete.**
 3. Deny-only `PreToolUse` validator. **Complete.**
-4. `SessionStart` routing guidance and `SubagentStart` role contracts.
+4. `SessionStart` routing guidance and `SubagentStart` role contracts. **Complete.**
 5. Isolated end-to-end hook probes.
 6. User-level installation and rollback tooling.
 

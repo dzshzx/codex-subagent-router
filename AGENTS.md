@@ -31,22 +31,29 @@ git diff --check
 本仓库用于开发 Codex 子代理的 model、effort、role 和 context 路由策略。
 当前已交付稳定的 policy seam，以及 `PreToolUse` / `SubagentStart` 的严格
 JSON protocol seam 和 deny-only `PreToolUse` validator；start-context
-handlers、隔离探针和安装工具属于后续阶段。阶段划分见 `README.md`，范围
-契约见 `docs/initial-scope.md`。
+handlers 也已交付；隔离探针和安装工具属于后续阶段。阶段划分见
+`README.md`，范围契约见 `docs/initial-scope.md`。
 
 - `src/codex_subagent_router/policy.py` 是唯一策略事实源。私有元组
   `_ROUTINE_ROUTES` 和 `_CONDITIONAL_ROUTES` 按能力升序排列，支持的
   child effort 集合从中派生；不得新增第二策略源或隐藏 fallback。
 - `src/codex_subagent_router/protocol.py` 是 hook wire boundary：严格解析
-  `PreToolUse` / `SubagentStart` 输入，并只编码项目支持的 deny 与 role-context
-  输出。它不承担 routing policy 或 handler 行为。
+  `PreToolUse` / `SessionStart` / `SubagentStart` 输入，并只编码项目支持的
+  deny、routing-guidance 与 role-context 输出。它不承担 routing policy 或
+  handler 行为。
 - `src/codex_subagent_router/validator.py` 只负责 routed `spawn_agent` 的
   deny-only 校验：非 spawn 调用无输出，合法调用返回 `None`，不合法调用
   返回 `PreToolUseDenyOutput`。profile 与 effort 必须从 `policy.py` 派生，
   不得在 validator 中复制路线表或静默 rewrite。
+- `src/codex_subagent_router/roles.py` 是四个 managed role 合同的唯一可执行
+  来源；合同只描述稳定行为，不得写入 model、effort、service tier 或 fork。
+- `src/codex_subagent_router/start_context.py` 从 `policy.py` 与 `roles.py`
+  派生 root `startup` guidance，并为 managed `SubagentStart` 精确选择合同；
+  非 startup source 与 unmanaged role 返回 `None`，不得隐藏 fallback。
 - `src/codex_subagent_router/__init__.py` 是公共 API 边界，对外暴露
   policy 和 protocol value types、`parse_hook_input`、`encode_hook_output`；
-  同时暴露 `validate_pre_tool_use`；存储与解析细节保持私有。
+  同时暴露 validator、role source 与 start-context handlers；存储与解析细节
+  保持私有。
 - `tests/` 通过公共接口验证可观察行为。路由顺序由测试精确锁定，修改
   顺序即修改契约。
 
