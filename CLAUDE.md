@@ -11,11 +11,14 @@ uv sync --dev                 # 创建/更新开发环境
 uv run pytest                 # 全部测试
 uv run pytest tests/test_policy.py::test_ultra_child_effort_is_rejected  # 单个测试
 uv run ruff check .           # lint
+uv run ruff format --check .  # 仅检查格式，不修改文件
 uv run mypy                   # 严格类型检查（覆盖 src 与 tests）
 uv build                      # 打包检查
 ```
 
 提交前按 CONTRIBUTING.md 跑全部检查：`uv run pytest && uv run ruff check . && uv run mypy && uv build && git diff --check`。
+
+提交信息沿用仓库历史的 Conventional Commit 前缀（`feat:`、`refactor:`、`docs:` 等）。
 
 ## 架构
 
@@ -67,4 +70,4 @@ Issue 以 markdown 文件形式放在仓库内 `.scratch/<feature>/` 下（local
 
 ### Domain docs
 
-Single-context 布局：根目录 `CONTEXT.md` + `docs/adr/`。See `docs/agents/domain.md`.
+Single-context 布局：根目录 `CONTEXT.md` 与 `docs/adr/` 按需创建。See `docs/agents/domain.md`.
