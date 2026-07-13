@@ -33,6 +33,9 @@ from ._installation_files import (
     json_document as _json_document,
 )
 from ._installation_files import (
+    launcher_issues as _launcher_issues,
+)
+from ._installation_files import (
     managed_hook_groups as _managed_hook_groups,
 )
 from ._installation_files import (
@@ -110,17 +113,54 @@ def plan_user_installation(
     hook_command: tuple[str, ...],
 ) -> InstallationPlan:
     """Plan installation into one explicit Codex home without writing files."""
+    installation_directory = codex_home / _INSTALLATION_DIRECTORY
+    state_violation = _installation_state_path_violation(installation_directory)
+    if state_violation is not None:
+        return _blocked_plan(codex_home, state_violation)
+    lock_path = _operation_lock_path(installation_directory)
+    if lock_path.exists() or lock_path.is_symlink():
+        return _blocked_plan(
+            codex_home,
+            "another installation operation is in progress",
+        )
+    if (installation_directory / _TRANSACTION_NAME).exists():
+        return _blocked_plan(
+            codex_home,
+            "incomplete installation transaction must be rolled back",
+        )
+    manifest_path = installation_directory / _MANIFEST_NAME
+    has_healthy_installation = False
+    if manifest_path.is_file():
+        status = _installation_status_without_lock(codex_home)
+        if status.state is not InstallationState.INSTALLED:
+            detail = "; ".join(status.details) if status.details else status.state.value
+            return _blocked_plan(
+                codex_home,
+                f"existing installation state is not healthy: {detail}",
+            )
+        has_healthy_installation = True
     config_path = codex_home / "config.toml"
     hooks_path = codex_home / "hooks.json"
     violation = _first_target_violation(config_path, hooks_path)
     if violation is not None:
         return _blocked_plan(codex_home, violation)
-    return _plan_from_snapshots(
+    plan = _plan_from_snapshots(
         codex_home,
         hook_command,
         _snapshot(config_path),
         _snapshot(hooks_path),
     )
+    if has_healthy_installation and (
+        plan.conflicts
+        or plan.config_action is not InstallationFileAction.UNCHANGED
+        or plan.hooks_action is not InstallationFileAction.UNCHANGED
+    ):
+        return _blocked_plan(
+            codex_home,
+            "existing installation differs from the requested configuration; "
+            "roll it back before reinstalling",
+        )
+    return plan
 
 
 def _first_target_violation(*paths: Path) -> str | None:
@@ -518,6 +558,7 @@ def _installation_status_without_lock(codex_home: Path) -> InstallationStatus:
         if not _installation_manifest_is_valid(manifest, "installed"):
             raise TypeError("installation manifest is invalid")
         details = _installation_modifications(codex_home, manifest)
+        launcher_details = _launcher_issues(manifest)
     except (
         json.JSONDecodeError,
         UnicodeDecodeError,
@@ -531,10 +572,12 @@ def _installation_status_without_lock(codex_home: Path) -> InstallationStatus:
             state=InstallationState.INCOMPLETE,
             details=("installation manifest is invalid",),
         )
+    # A launcher that disappeared after installation is an environment
+    # problem, not a user modification; it must not block rollback.
     return InstallationStatus(
         codex_home=codex_home,
         state=(InstallationState.MODIFIED if details else InstallationState.INSTALLED),
-        details=tuple(details),
+        details=(*details, *launcher_details),
     )
 
 

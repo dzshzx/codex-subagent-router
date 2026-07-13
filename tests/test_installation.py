@@ -21,6 +21,14 @@ from codex_subagent_router import (
 )
 
 
+def _hook_executable(tmp_path: Path) -> Path:
+    executable = tmp_path / "bin" / "codex-subagent-router-hook"
+    executable.parent.mkdir(exist_ok=True)
+    executable.write_text("#!/bin/sh\n")
+    executable.chmod(0o755)
+    return executable
+
+
 def test_empty_codex_home_plan_creates_managed_roles_and_hooks(
     tmp_path: Path,
 ) -> None:
@@ -541,3 +549,65 @@ def test_plan_rejects_a_non_array_managed_hook_event(tmp_path: Path) -> None:
     assert actual.roles_to_add == ()
     assert actual.hook_events_to_add == ()
     assert (tmp_path / "hooks.json").read_bytes() == hooks_document
+
+
+def test_plan_reports_a_leftover_transaction_journal(tmp_path: Path) -> None:
+    hook_executable = _hook_executable(tmp_path)
+    installed = install_user_config(tmp_path, (str(hook_executable),))
+    journal = json.loads(installed.manifest_path.read_text())
+    journal["state"] = "installing"
+    transaction_path = installed.manifest_path.with_name("transaction.json")
+    transaction_path.write_text(json.dumps(journal) + "\n")
+    installed.manifest_path.unlink()
+
+    actual = plan_user_installation(tmp_path, (str(hook_executable),))
+
+    assert actual.conflicts == (
+        "incomplete installation transaction must be rolled back",
+    )
+    assert actual.config_action is InstallationFileAction.UNCHANGED
+    assert actual.hooks_action is InstallationFileAction.UNCHANGED
+
+
+def test_plan_reports_a_held_operation_lock(tmp_path: Path) -> None:
+    (tmp_path / "codex-subagent-router" / "operation.lock").mkdir(parents=True)
+
+    actual = plan_user_installation(
+        tmp_path,
+        (str(tmp_path / "bin" / "codex-subagent-router-hook"),),
+    )
+
+    assert actual.conflicts == ("another installation operation is in progress",)
+    assert actual.config_action is InstallationFileAction.UNCHANGED
+    assert actual.hooks_action is InstallationFileAction.UNCHANGED
+
+
+def test_plan_reports_an_unhealthy_existing_receipt(tmp_path: Path) -> None:
+    hook_executable = _hook_executable(tmp_path)
+    installed = install_user_config(tmp_path, (str(hook_executable),))
+    installed.manifest_path.write_text("{}\n")
+
+    actual = plan_user_installation(tmp_path, (str(hook_executable),))
+
+    assert actual.conflicts == (
+        "existing installation state is not healthy: installation manifest is invalid",
+    )
+    assert actual.config_action is InstallationFileAction.UNCHANGED
+    assert actual.hooks_action is InstallationFileAction.UNCHANGED
+
+
+def test_plan_requires_rollback_before_a_different_reinstall(tmp_path: Path) -> None:
+    first_executable = _hook_executable(tmp_path)
+    install_user_config(tmp_path, (str(first_executable),))
+    second_executable = tmp_path / "bin" / "replacement-hook"
+    second_executable.write_text("#!/bin/sh\n")
+    second_executable.chmod(0o755)
+
+    actual = plan_user_installation(tmp_path, (str(second_executable),))
+
+    assert actual.conflicts == (
+        "existing installation differs from the requested configuration; "
+        "roll it back before reinstalling",
+    )
+    assert actual.config_action is InstallationFileAction.UNCHANGED
+    assert actual.hooks_action is InstallationFileAction.UNCHANGED

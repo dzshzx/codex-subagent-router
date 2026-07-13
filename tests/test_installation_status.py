@@ -131,3 +131,35 @@ def test_status_refuses_to_follow_a_symlinked_state_directory(
         state=InstallationState.INCOMPLETE,
         details=("installation state directory must not be a symbolic link",),
     )
+
+
+def test_status_reports_a_missing_hook_launcher_without_blocking_rollback(
+    tmp_path: Path,
+) -> None:
+    hook_executable = _hook_executable(tmp_path)
+    installed = install_user_config(tmp_path, (str(hook_executable),))
+    hook_executable.unlink()
+
+    status = installation_status(tmp_path)
+
+    assert status.state is InstallationState.INSTALLED
+    assert status.details == (
+        f"hook launcher is not an executable file: {hook_executable}",
+    )
+    rollback_user_config(tmp_path)
+    assert installation_status(tmp_path).state is InstallationState.NOT_INSTALLED
+    assert not installed.config_path.exists()
+    assert not installed.hooks_path.exists()
+
+
+def test_status_reports_a_non_executable_hook_launcher(tmp_path: Path) -> None:
+    hook_executable = _hook_executable(tmp_path)
+    install_user_config(tmp_path, (str(hook_executable),))
+    hook_executable.chmod(0o644)
+
+    status = installation_status(tmp_path)
+
+    assert status.state is InstallationState.INSTALLED
+    assert status.details == (
+        f"hook launcher is not an executable file: {hook_executable}",
+    )

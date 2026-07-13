@@ -352,6 +352,35 @@ def installation_modifications(
     return details
 
 
+def launcher_issues(manifest: dict[str, object]) -> list[str]:
+    """Report managed hook launchers that are no longer executable files."""
+    issues: list[str] = []
+    for executable in sorted(_receipt_hook_executables(manifest)):
+        path = Path(executable)
+        if not (path.is_absolute() and path.is_file() and os.access(path, os.X_OK)):
+            issues.append(f"hook launcher is not an executable file: {executable}")
+    return issues
+
+
+def _receipt_hook_executables(manifest: dict[str, object]) -> set[str]:
+    hooks_manifest = cast(dict[str, object], manifest["hooks"])
+    expected_groups = cast(dict[str, list[object]], hooks_manifest["expected_groups"])
+    executables: set[str] = set()
+    for groups in expected_groups.values():
+        for group in groups:
+            hooks = cast(list[object], cast(dict[str, object], group)["hooks"])
+            for hook in hooks:
+                command = cast(str, cast(dict[str, object], hook)["command"])
+                try:
+                    argv = shlex.split(command)
+                except ValueError:
+                    executables.add(command)
+                    continue
+                if argv:
+                    executables.add(argv[0])
+    return executables
+
+
 def validate_hook_command(hook_command: tuple[str, ...]) -> None:
     if not hook_command or not all(part for part in hook_command):
         raise InstallationViolation("hook command must contain non-empty arguments")
