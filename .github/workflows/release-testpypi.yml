@@ -1,20 +1,22 @@
-name: Release
+name: Release (TestPyPI dry run)
+
+# Manual dry run of the full publish pipeline against TestPyPI. TestPyPI is
+# independent of PyPI, so uploading a version here does NOT consume that version
+# on the real index. Trigger from the Actions tab or `gh workflow run`.
 
 on:
-  push:
-    tags: ["v*"]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  publish:
-    name: Build and publish to PyPI
+  publish-testpypi:
+    name: Build and publish to TestPyPI
     runs-on: ubuntu-latest
     environment:
-      name: pypi
-      url: https://pypi.org/project/codex-subagent-router/
+      name: testpypi
+      url: https://test.pypi.org/project/codex-subagent-router/
     permissions:
       contents: read
       id-token: write
@@ -47,8 +49,10 @@ jobs:
       - name: Upload release artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: python-distributions
+          name: python-distributions-testpypi
           path: dist/
 
-      - name: Publish package distributions to PyPI
+      - name: Publish package distributions to TestPyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
