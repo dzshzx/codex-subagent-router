@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
-authors = [{ name = "dzshzx", email = "dzshzx0930@gmail.com" }]
+authors = [{ name = "dzshzx", email = "22311806+dzshzx@users.noreply.github.com" }]
 keywords = ["codex", "hooks", "subagent", "routing", "policy"]
 classifiers = [
     "Development Status :: 4 - Beta",
