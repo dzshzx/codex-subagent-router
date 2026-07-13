@@ -39,6 +39,20 @@ def test_cli_rejects_a_blank_codex_home() -> None:
         assert "must not be blank" in actual.stderr
 
 
+def test_cli_rejects_a_relative_hook_executable(tmp_path: Path) -> None:
+    actual = _run_cli(
+        "plan",
+        "--codex-home",
+        str(tmp_path),
+        "--hook-executable",
+        "relative-hook",
+    )
+
+    assert actual.returncode == 2
+    assert "--hook-executable" in actual.stderr
+    assert "must be an absolute path" in actual.stderr
+
+
 def test_cli_plan_is_read_only_and_machine_readable(tmp_path: Path) -> None:
     hook_executable = _hook_executable(tmp_path)
 

@@ -48,6 +48,7 @@ Run all checks before committing:
 ```bash
 uv run pytest
 uv run ruff check .
+uv run ruff format --check .
 uv run mypy
 uv build
 git diff --check

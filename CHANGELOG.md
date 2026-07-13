@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.1.4 — 2026-07-13
+
+### Added
+
+- A copyable persistent-installation, Hook-trust, fresh-session, and denial
+  smoke-test runbook.
+- A release guard that requires an existing `v*` tag whose value matches the
+  package version before trusted publishing can start.
+
+### Changed
+
+- The installation CLI now rejects a relative `--hook-executable` instead of
+  silently resolving it against the current working directory.
+- Contributor checks, command-result semantics, historical scope notes, and
+  release-chain documentation now match the executable workflows.
+
 ## 0.1.3 — 2026-07-13
 
 ### Fixed
@@ -25,8 +41,8 @@ First publicly released version.
   file without blocking rollback.
 - MIT license, PEP 561 `py.typed` marker, complete packaging metadata, and
   project URLs.
-- CI gate on Python 3.11 and 3.14; tag-triggered publishing through TestPyPI
-  to PyPI with trusted publishing.
+- CI gate on Python 3.11 and 3.14; tag-triggered trusted publishing directly
+  to PyPI.
 
 ### Fixed
 

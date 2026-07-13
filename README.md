@@ -42,6 +42,13 @@ minimum version, or a claim about unlisted releases.
 | `0.144.1` | Strict hook protocol, command adapters, generated user installation, and fresh-session role/Hook discovery | [`docs/research/codex-0.144.1-hook-evidence.md`](https://github.com/dzshzx/codex-subagent-router/blob/HEAD/docs/research/codex-0.144.1-hook-evidence.md) |
 | `0.144.3` | Root guidance, deny-before-creation, managed role context, fail-open behavior, generated installation, status, rollback, and both spawn shapes of the capability seam against the shipped stable toolset | [`docs/research/codex-0.144.3-hook-evidence.md`](https://github.com/dzshzx/codex-subagent-router/blob/HEAD/docs/research/codex-0.144.3-hook-evidence.md) |
 
+The `0.144.3` probe used package version `0.1.2`. Version `0.1.3` changed only
+branch-agnostic documentation links. Version `0.1.4` retains the same generated
+Hook configuration and runtime contracts while rejecting relative explicit
+launcher paths earlier at the CLI boundary. These packaging and preflight
+changes do not extend the Codex-version compatibility claim beyond the recorded
+probe.
+
 The installed `0.144.3` release binary drifts from its source tag: it still
 reports the flattened `collaborationspawn_agent` hook tool name and its
 default stable spawn handler enforces the V2-shaped input contract. Release
@@ -64,7 +71,13 @@ spawn-denial, managed-child, generated-installation, status, and rollback
 probes pass. Keep each version's evidence as a separate record rather than
 replacing old links with an unpinned `latest` reference.
 
-## Automatic routing policy
+## Guided routing policy
+
+The route table is the allowlist and ordering guidance for an explicit parent
+decision. Root startup context tells the parent which role, model, effort, and
+fork shape to select; the `PreToolUse` hook validates that explicit selection
+and only denies invalid calls. It never chooses, fills, or rewrites spawn
+parameters automatically.
 
 Five profiles cover routine work in ascending capability order:
 
@@ -165,15 +178,69 @@ errors are written to stderr and exit `1`; command usage errors exit `2`.
 
 ## User installation
 
-Install the package so both console scripts are on `PATH`, then inspect the
-planned changes against an explicit Codex home. Define the target directory
-yourself before using it; the examples below manage the default user-level
-Codex home:
+### Prerequisites
+
+Use a POSIX environment with Python 3.11 or newer. Install and authenticate the
+Codex CLI before installing this package, then confirm its version and login:
+
+```bash
+codex --version
+codex login status
+```
+
+The compatibility table records completed probes, not a runtime version pin.
+If the installed Codex version is not listed, complete the compatibility gate
+in [CONTRIBUTING.md](CONTRIBUTING.md#codex-compatibility-verification) before
+describing the deployment as verified. Normal use relies on the stable
+`multi_agent` feature and does not require enabling the `multi_agent_v2`
+preview.
+
+### Persistent package installation
+
+Install the package as a persistent tool so both console scripts remain on
+`PATH` across shells:
+
+```bash
+uv tool install codex-subagent-router
+
+command -v codex-subagent-router
+command -v codex-subagent-router-hook
+```
+
+Pin the package version in the `uv tool install` requirement when a deployment
+must reproduce one specific release. Do not use a one-shot `uvx` invocation or
+a temporary virtual environment: the installer writes the absolute Hook
+launcher path into `hooks.json`, and removing that environment would silently
+leave Codex pointing at a missing command. `status` reports a launcher that
+later becomes non-executable.
+
+### Plan, install, and verify
+
+Define the target Codex home explicitly. The following commands manage the
+default user-level Codex home:
 
 ```bash
 CODEX_HOME="$HOME/.codex"
 
 codex-subagent-router plan --codex-home "$CODEX_HOME"
+```
+
+`plan` is read-only. Inspect its `config_action`, `hooks_action`, additions, and
+`conflicts` before continuing. It reports the conflicts modeled by the
+installer, including an incomplete transaction journal, a held operation lock,
+an unhealthy or diverging existing installation, incompatible role or Hook
+configuration, unsafe file targets, and a launcher that is not executable.
+It cannot predict permission, storage, or concurrent filesystem failures that
+occur after the plan was produced; `install` repeats the checks while holding
+the operation lock and fails closed if snapshots have changed.
+
+If `codex-subagent-router-hook` cannot be resolved on `PATH`, `plan` and
+`install` accept `--hook-executable PATH`. The value must be an absolute path to
+a regular executable file in a persistent environment.
+
+When `plan` exits `0` with an empty `conflicts` array, install and query status:
+
+```bash
 codex-subagent-router install --codex-home "$CODEX_HOME"
 codex-subagent-router status --codex-home "$CODEX_HOME"
 ```
@@ -182,17 +249,16 @@ codex-subagent-router status --codex-home "$CODEX_HOME"
 and a blank value is rejected instead of resolving to the current working
 directory.
 
-`plan` reports every condition that would make `install` refuse — an
-incomplete transaction journal, a held operation lock, an unhealthy or
-diverging existing installation, and a hook launcher that is not an
-executable file — as an explicit conflict instead of showing a clean plan
-that later fails. `status` additionally reports a managed hook launcher that
-is no longer an executable file; that environment problem does not block
-rollback.
-`plan` and `install` locate `codex-subagent-router-hook` on `PATH`; an explicit
-absolute launcher can instead be selected with `--hook-executable PATH`.
-Machine-readable JSON is written to stdout. Usage errors exit `2`, installation
-or planning conflicts exit `1`, and successful operations exit `0`.
+`status` is healthy only when its JSON contains `"state": "installed"` and an
+empty `details` array. A completed status query exits `0` for every reported
+state, including `not-installed`, `modified`, and `incomplete`; automation must
+inspect `state` instead of treating exit `0` as proof of a healthy installation.
+
+Successful operations and modeled `plan` conflicts write machine-readable JSON
+to stdout. A plan with conflicts exits `1`. Usage errors exit `2` with text on
+stderr. Failures raised before planning, and installation or rollback
+violations, exit `1` with text on stderr; callers must not assume that every
+nonzero result contains JSON.
 
 The installer adds description-only declarations for the four managed roles to
 `config.toml`, adds the three command-hook groups to `hooks.json`, and writes a
@@ -203,24 +269,43 @@ Configuration files and state paths that are symbolic links are rejected.
 Compatible entries that already exist are verified but are not claimed as
 installer-owned.
 
-The installer writes the absolute launcher path into `hooks.json`, so install
-the package into an environment that outlives the current shell — a dedicated
-virtual environment or a persistent tool install, not a one-shot `uvx` run or
-a temporary environment. A launcher whose environment was later deleted is
-reported by `status` as no longer executable.
+### Review Hook trust and start a fresh session
 
-Codex does not reliably hot-reload ordinary user configuration files. After a
-successful install, review and trust the new user hooks in Codex, then start a
-fresh session. The installer deliberately does not write hook trust state and
-does not enable `--dangerously-bypass-hook-trust`. Hook launch failures and
-timeouts are fail-open in Codex, so this router remains a policy guardrail, not
-a security or spending-isolation boundary.
+After a successful install, start Codex and review the new user Hooks through
+the Codex Hook trust prompt or Hook management UI. Confirm that the three groups
+are `PreToolUse`, `SessionStart`, and `SubagentStart`, and that each command uses
+the same persistent `codex-subagent-router-hook` path reported by `command -v`.
+See the [Codex Hooks documentation](https://developers.openai.com/codex/hooks)
+for the current product UI and trust behavior.
 
-Confirm enforcement in the fresh session with a smoke test that must fail:
-request a routed child with reasoning effort `ultra` and expect the denial
-reason `child reasoning effort 'ultra' is prohibited`. If the spawn is not
-denied, hook trust has not taken effect and routing enforcement is silently
-disabled.
+The installer deliberately does not read or write Hook trust state and does not
+enable `--dangerously-bypass-hook-trust`. After approving the Hooks, completely
+close the old Codex session and start a fresh one; Codex does not reliably
+hot-reload ordinary user configuration files.
+
+In the fresh session, submit this smoke-test request:
+
+```text
+Call spawn_agent once with exactly these routing parameters:
+
+task_name: "router-smoke"
+message: "Return exactly ROUTER_SMOKE"
+fork_turns: "none"
+agent_type: "reviewer"
+model: "gpt-5.6-sol"
+reasoning_effort: "ultra"
+
+Do not change or omit any parameter.
+```
+
+The call must be denied before a child is created with the reason
+`child reasoning effort 'ultra' is prohibited`. If a child starts, enforcement
+is not active. Re-run `status`, confirm the launcher is executable, review Hook
+trust again, and open another fresh session. Do not use the dangerous trust
+bypass as a production fix.
+
+Hook launch failures and timeouts are fail-open in Codex, so this router remains
+a policy guardrail, not a security or spending-isolation boundary.
 
 Rollback is explicit:
 
@@ -272,8 +357,10 @@ Run all checks:
 ```bash
 uv run pytest
 uv run ruff check .
+uv run ruff format --check .
 uv run mypy
 uv build
+git diff --check
 ```
 
 ## Delivery stages

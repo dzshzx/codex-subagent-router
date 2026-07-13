@@ -1,5 +1,10 @@
 # Initial repository scope
 
+> Historical scope note: This document records the repository's initial scope
+> and acceptance facts. Phases 1–6 are now complete, and the current default
+> branch is `master`. The `main` reference below is retained as a historical
+> acceptance criterion; it does not describe the repository's current branch.
+
 Date: 2026-07-13
 
 ## Objective

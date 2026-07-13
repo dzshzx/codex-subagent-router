@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "codex-subagent-router"
-version = "0.1.3"
+version = "0.1.4"
 description = "Policy and hook adapters for routing Codex subagents"
 readme = "README.md"
 requires-python = ">=3.11"

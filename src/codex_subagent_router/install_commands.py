@@ -76,7 +76,7 @@ def _build_parser() -> _ArgumentParser:
         _add_codex_home_argument(subparser)
         subparser.add_argument(
             "--hook-executable",
-            type=Path,
+            type=_absolute_path_argument,
             help="absolute hook executable path (defaults to PATH lookup)",
         )
     for operation in ("status", "rollback"):
@@ -97,10 +97,17 @@ def _codex_home_argument(value: str) -> Path:
     return Path(value)
 
 
+def _absolute_path_argument(value: str) -> Path:
+    path = Path(value)
+    if not path.is_absolute():
+        raise argparse.ArgumentTypeError("must be an absolute path")
+    return path
+
+
 def _hook_executable(arguments: argparse.Namespace) -> str:
     explicit = cast(Path | None, arguments.hook_executable)
     if explicit is not None:
-        return str(explicit.absolute())
+        return str(explicit)
     discovered = shutil.which("codex-subagent-router-hook")
     if discovered is None:
         raise InstallationViolation(

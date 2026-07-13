@@ -4,6 +4,11 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing v* tag name to publish (for example, v1.2.3)
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -22,11 +27,67 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.tag) || github.ref }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@v8.3.2
         with:
           enable-cache: true
+
+      - name: Validate release tag and project version
+        env:
+          DISPATCH_TAG: ${{ inputs.tag }}
+          RELEASE_EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+
+          case "$RELEASE_EVENT" in
+            push)
+              if [[ "$GITHUB_REF_TYPE" != "tag" ]]; then
+                printf '%s\n' 'A release push must target a tag.' >&2
+                exit 1
+              fi
+              release_tag="$GITHUB_REF_NAME"
+              ;;
+            workflow_dispatch)
+              release_tag="$DISPATCH_TAG"
+              ;;
+            *)
+              printf '%s\n' 'Unsupported release event.' >&2
+              exit 1
+              ;;
+          esac
+
+          case "$release_tag" in
+            v*) ;;
+            *)
+              printf '%s\n' 'The release tag must start with "v".' >&2
+              exit 1
+              ;;
+          esac
+
+          if ! git show-ref --verify --quiet "refs/tags/$release_tag"; then
+            printf '%s\n' 'The release tag does not exist in this checkout.' >&2
+            exit 1
+          fi
+
+          tag_commit="$(git rev-parse --verify "refs/tags/$release_tag^{commit}")"
+          head_commit="$(git rev-parse --verify "HEAD^{commit}")"
+          if [[ "$head_commit" != "$tag_commit" ]]; then
+            printf '%s\n' 'The checked-out commit does not match the release tag.' >&2
+            exit 1
+          fi
+
+          project_version="$(uv version --short)"
+          if [[ -z "$project_version" ]]; then
+            printf '%s\n' 'The project version is empty.' >&2
+            exit 1
+          fi
+          if [[ "$release_tag" != "v$project_version" ]]; then
+            printf '%s\n' 'The release tag does not match the project version.' >&2
+            exit 1
+          fi
 
       - name: Run checks
         run: |
