@@ -137,15 +137,21 @@ errors are written to stderr and exit `1`; command usage errors exit `2`.
 ## User installation
 
 Install the package so both console scripts are on `PATH`, then inspect the
-planned changes against an explicit Codex home:
+planned changes against an explicit Codex home. Define the target directory
+yourself before using it; the examples below manage the default user-level
+Codex home:
 
 ```bash
+CODEX_HOME="$HOME/.codex"
+
 codex-subagent-router plan --codex-home "$CODEX_HOME"
 codex-subagent-router install --codex-home "$CODEX_HOME"
 codex-subagent-router status --codex-home "$CODEX_HOME"
 ```
 
-`--codex-home` is always required. The CLI never falls back to `~/.codex`.
+`--codex-home` is always required. The CLI never falls back to `~/.codex`,
+and a blank value is rejected instead of resolving to the current working
+directory.
 `plan` and `install` locate `codex-subagent-router-hook` on `PATH`; an explicit
 absolute launcher can instead be selected with `--hook-executable PATH`.
 Machine-readable JSON is written to stdout. Usage errors exit `2`, installation

@@ -30,6 +30,15 @@ def test_cli_requires_an_explicit_codex_home() -> None:
     assert "--codex-home" in actual.stderr
 
 
+def test_cli_rejects_a_blank_codex_home() -> None:
+    for blank in ("", "   "):
+        actual = _run_cli("status", "--codex-home", blank)
+
+        assert actual.returncode == 2
+        assert "--codex-home" in actual.stderr
+        assert "must not be blank" in actual.stderr
+
+
 def test_cli_plan_is_read_only_and_machine_readable(tmp_path: Path) -> None:
     hook_executable = _hook_executable(tmp_path)
 

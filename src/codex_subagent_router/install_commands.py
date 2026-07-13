@@ -86,7 +86,15 @@ def _build_parser() -> _ArgumentParser:
 
 
 def _add_codex_home_argument(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--codex-home", required=True, type=Path)
+    parser.add_argument("--codex-home", required=True, type=_codex_home_argument)
+
+
+def _codex_home_argument(value: str) -> Path:
+    # An empty string would silently resolve to the current working
+    # directory; reject it while the original argument text is still known.
+    if not value.strip():
+        raise argparse.ArgumentTypeError("must not be blank")
+    return Path(value)
 
 
 def _hook_executable(arguments: argparse.Namespace) -> str:
