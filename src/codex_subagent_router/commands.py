@@ -1,24 +1,16 @@
 """Executable command-line boundary for Codex command hooks."""
 
 import sys
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 
-from .document_handlers import (
-    handle_pre_tool_use_document,
-    handle_session_start_document,
-    handle_subagent_start_document,
-)
+from .hook_specs import hook_command_specs
 from .protocol import ProtocolViolation
 
 _USAGE = (
     "usage: python -m codex_subagent_router.commands "
     "{pre-tool-use|session-start|subagent-start}"
 )
-_COMMANDS: dict[str, Callable[[str], str]] = {
-    "pre-tool-use": handle_pre_tool_use_document,
-    "session-start": handle_session_start_document,
-    "subagent-start": handle_subagent_start_document,
-}
+_COMMANDS = {spec.command_name: spec.handler for spec in hook_command_specs()}
 
 
 def main(argv: Sequence[str] | None = None) -> int:

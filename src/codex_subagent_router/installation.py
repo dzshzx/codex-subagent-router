@@ -1,0 +1,575 @@
+"""Planning and state transitions for explicit user-level installation."""
+
+import json
+import tomllib
+from pathlib import Path
+from typing import cast
+
+from ._installation_files import (
+    atomic_write as _atomic_write,
+)
+from ._installation_files import (
+    encoded_original as _encoded_original,
+)
+from ._installation_files import (
+    file_target_violation as _file_target_violation,
+)
+from ._installation_files import (
+    installation_lock as _installation_lock,
+)
+from ._installation_files import (
+    installation_manifest_is_valid as _installation_manifest_is_valid,
+)
+from ._installation_files import (
+    installation_modifications as _installation_modifications,
+)
+from ._installation_files import (
+    installation_state_path_violation as _installation_state_path_violation,
+)
+from ._installation_files import (
+    json_document as _json_document,
+)
+from ._installation_files import (
+    managed_hook_groups as _managed_hook_groups,
+)
+from ._installation_files import (
+    merge_hook_groups as _merge_hook_groups,
+)
+from ._installation_files import (
+    operation_lock_path as _operation_lock_path,
+)
+from ._installation_files import (
+    render_role_block as _render_role_block,
+)
+from ._installation_files import (
+    restore_file as _restore_file,
+)
+from ._installation_files import (
+    sha256 as _sha256,
+)
+from ._installation_files import (
+    target_mode as _target_mode,
+)
+from ._installation_files import (
+    toml_separator as _toml_separator,
+)
+from ._installation_files import (
+    validate_hook_command as _validate_hook_command,
+)
+from ._installation_files import (
+    validate_recoverable_transaction as _validate_recoverable_transaction,
+)
+from ._installation_rollback import (
+    RollbackTarget as _RollbackTarget,
+)
+from ._installation_rollback import (
+    apply_rollback_target as _apply_rollback_target,
+)
+from ._installation_rollback import (
+    parse_rollback_targets as _parse_rollback_targets,
+)
+from ._installation_rollback import (
+    plan_config_rollback as _plan_config_rollback,
+)
+from ._installation_rollback import (
+    plan_hooks_rollback as _plan_hooks_rollback,
+)
+from ._installation_rollback import (
+    plan_install_recovery as _plan_install_recovery,
+)
+from ._installation_rollback import (
+    rollback_journal_document as _rollback_journal_document,
+)
+from ._installation_rollback import (
+    validate_rollback_target as _validate_rollback_target,
+)
+from ._installation_types import (
+    InstallationFileAction as InstallationFileAction,
+)
+from ._installation_types import InstallationPlan as InstallationPlan
+from ._installation_types import InstallationResult as InstallationResult
+from ._installation_types import InstallationState as InstallationState
+from ._installation_types import InstallationStatus as InstallationStatus
+from ._installation_types import (
+    InstallationViolation as InstallationViolation,
+)
+from ._installation_types import RollbackFileAction as RollbackFileAction
+from ._installation_types import RollbackResult as RollbackResult
+from .roles import role_contracts
+
+_INSTALLATION_DIRECTORY = "codex-subagent-router"
+_MANIFEST_NAME = "installation.json"
+_TRANSACTION_NAME = "transaction.json"
+
+
+def plan_user_installation(
+    codex_home: Path,
+    hook_command: tuple[str, ...],
+) -> InstallationPlan:
+    """Plan installation into one explicit Codex home without writing files."""
+    config_path = codex_home / "config.toml"
+    hooks_path = codex_home / "hooks.json"
+    for path in (config_path, hooks_path):
+        violation = _file_target_violation(path)
+        if violation is not None:
+            return _blocked_plan(codex_home, violation)
+    existing_roles: dict[str, object] = {}
+    if config_path.exists():
+        try:
+            config = tomllib.loads(config_path.read_text(encoding="utf-8"))
+        except (tomllib.TOMLDecodeError, UnicodeDecodeError):
+            return _blocked_plan(codex_home, "config.toml is not valid TOML")
+        agents = config.get("agents")
+        if agents is not None and not isinstance(agents, dict):
+            return _blocked_plan(
+                codex_home,
+                "config.toml field 'agents' must be a table",
+            )
+        if isinstance(agents, dict):
+            existing_roles = cast(dict[str, object], agents)
+    roles_to_add: list[str] = []
+    conflicts: list[str] = []
+    for contract in role_contracts():
+        if contract.agent_type not in existing_roles:
+            roles_to_add.append(contract.agent_type)
+            continue
+        existing_role = existing_roles[contract.agent_type]
+        if (
+            isinstance(existing_role, dict)
+            and existing_role.get("description") == contract.description
+            and "config_file" not in existing_role
+        ):
+            continue
+        conflicts.append(
+            f"managed role {contract.agent_type!r} already exists with "
+            "incompatible configuration"
+        )
+    managed_hook_groups = _managed_hook_groups(hook_command)
+    hook_events_to_add = list(managed_hook_groups)
+    if hooks_path.exists():
+        try:
+            hooks_document = json.loads(hooks_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return _blocked_plan(codex_home, "hooks.json is not valid JSON")
+        if not isinstance(hooks_document, dict):
+            return _blocked_plan(codex_home, "hooks.json root must be an object")
+        existing_hooks = hooks_document.get("hooks", {})
+        if not isinstance(existing_hooks, dict):
+            return _blocked_plan(
+                codex_home,
+                "hooks.json field 'hooks' must be an object",
+            )
+        for event_name in managed_hook_groups:
+            event_groups = existing_hooks.get(event_name, [])
+            if not isinstance(event_groups, list):
+                return _blocked_plan(
+                    codex_home,
+                    f"hooks.json event {event_name!r} must be an array",
+                )
+        hook_events_to_add = []
+        for event_name, groups in managed_hook_groups.items():
+            event_groups = cast(list[object], existing_hooks.get(event_name, []))
+            if all(group in event_groups for group in groups):
+                continue
+            managed_group = cast(dict[str, object], groups[0])
+            matcher = managed_group["matcher"]
+            if any(
+                isinstance(existing_group, dict)
+                and existing_group.get("matcher") == matcher
+                for existing_group in event_groups
+            ):
+                conflicts.append(
+                    f"managed hook event {event_name!r} matcher already exists "
+                    "with incompatible configuration"
+                )
+                continue
+            hook_events_to_add.append(event_name)
+    return InstallationPlan(
+        codex_home=codex_home,
+        config_action=(
+            (
+                InstallationFileAction.UPDATE
+                if config_path.exists()
+                else InstallationFileAction.CREATE
+            )
+            if roles_to_add
+            else InstallationFileAction.UNCHANGED
+        ),
+        hooks_action=(
+            (
+                InstallationFileAction.UPDATE
+                if hooks_path.exists()
+                else InstallationFileAction.CREATE
+            )
+            if hook_events_to_add
+            else InstallationFileAction.UNCHANGED
+        ),
+        roles_to_add=tuple(roles_to_add),
+        hook_events_to_add=tuple(hook_events_to_add),
+        conflicts=tuple(conflicts),
+        requires_hook_review=True,
+        requires_new_session=True,
+    )
+
+
+def _blocked_plan(codex_home: Path, conflict: str) -> InstallationPlan:
+    return InstallationPlan(
+        codex_home=codex_home,
+        config_action=InstallationFileAction.UNCHANGED,
+        hooks_action=InstallationFileAction.UNCHANGED,
+        roles_to_add=(),
+        hook_events_to_add=(),
+        conflicts=(conflict,),
+        requires_hook_review=True,
+        requires_new_session=True,
+    )
+
+
+def install_user_config(
+    codex_home: Path,
+    hook_command: tuple[str, ...],
+) -> InstallationResult:
+    """Install managed roles and hooks into one explicit Codex home."""
+    installation_directory = codex_home / _INSTALLATION_DIRECTORY
+    violation = _installation_state_path_violation(installation_directory)
+    if violation is not None:
+        raise InstallationViolation(violation)
+    with _installation_lock(installation_directory):
+        return _install_user_config_locked(codex_home, hook_command)
+
+
+def _install_user_config_locked(
+    codex_home: Path,
+    hook_command: tuple[str, ...],
+) -> InstallationResult:
+    installation_directory = codex_home / _INSTALLATION_DIRECTORY
+    transaction_path = installation_directory / _TRANSACTION_NAME
+    manifest_path = installation_directory / _MANIFEST_NAME
+    if transaction_path.exists():
+        raise InstallationViolation(
+            "incomplete installation transaction must be rolled back"
+        )
+    if manifest_path.is_file():
+        status = _installation_status_without_lock(codex_home)
+        if status.state is not InstallationState.INSTALLED:
+            detail = "; ".join(status.details) if status.details else status.state.value
+            raise InstallationViolation(
+                f"existing installation state is not healthy: {detail}"
+            )
+    plan = plan_user_installation(codex_home, hook_command)
+    if manifest_path.is_file() and (
+        plan.conflicts
+        or plan.config_action is not InstallationFileAction.UNCHANGED
+        or plan.hooks_action is not InstallationFileAction.UNCHANGED
+    ):
+        raise InstallationViolation(
+            "existing installation differs from the requested configuration; "
+            "roll it back before reinstalling"
+        )
+    if plan.conflicts:
+        raise InstallationViolation("; ".join(plan.conflicts))
+    _validate_hook_command(hook_command)
+
+    config_path = codex_home / "config.toml"
+    hooks_path = codex_home / "hooks.json"
+    result = InstallationResult(
+        codex_home=codex_home,
+        config_path=config_path,
+        hooks_path=hooks_path,
+        manifest_path=manifest_path,
+        requires_hook_review=True,
+        requires_new_session=True,
+    )
+    if (
+        plan.config_action is InstallationFileAction.UNCHANGED
+        and plan.hooks_action is InstallationFileAction.UNCHANGED
+        and manifest_path.exists()
+    ):
+        return result
+    config_existed = config_path.exists()
+    hooks_existed = hooks_path.exists()
+    config_before = config_path.read_bytes() if config_existed else b""
+    hooks_before = hooks_path.read_bytes() if hooks_existed else b""
+    config_mode = _target_mode(config_path)
+    hooks_mode = _target_mode(hooks_path)
+    config_changed = plan.config_action is not InstallationFileAction.UNCHANGED
+    hooks_changed = plan.hooks_action is not InstallationFileAction.UNCHANGED
+    role_block = _render_role_block(plan.roles_to_add) if config_changed else ""
+    config_separator = _toml_separator(config_before) if config_changed else b""
+    config_after = config_before + config_separator + role_block.encode("utf-8")
+    all_hook_groups = _managed_hook_groups(hook_command)
+    expected_roles = {
+        contract.agent_type: contract.description for contract in role_contracts()
+    }
+    hook_groups = {
+        event_name: all_hook_groups[event_name]
+        for event_name in plan.hook_events_to_add
+    }
+    hooks_after = (
+        _merge_hook_groups(hooks_before, hook_groups) if hooks_changed else hooks_before
+    )
+    manifest = {
+        "schema_version": 1,
+        "state": "installed",
+        "config": {
+            "created": not config_existed,
+            "changed": config_changed,
+            "managed_block": role_block,
+            "expected_roles": expected_roles,
+            "separator": config_separator.decode(),
+            "original_bytes": _encoded_original(config_before, config_existed),
+            "original_mode": (config_mode if config_existed else None),
+            "installed_sha256": _sha256(config_after),
+        },
+        "hooks": {
+            "created": not hooks_existed,
+            "changed": hooks_changed,
+            "managed_groups": hook_groups,
+            "expected_groups": all_hook_groups,
+            "original_bytes": _encoded_original(hooks_before, hooks_existed),
+            "original_mode": hooks_mode if hooks_existed else None,
+            "installed_sha256": _sha256(hooks_after),
+        },
+    }
+    journal = {**manifest, "state": "installing"}
+
+    try:
+        _atomic_write(transaction_path, _json_document(journal), 0o600)
+        if config_changed:
+            _atomic_write(config_path, config_after, config_mode)
+        if hooks_changed:
+            _atomic_write(hooks_path, hooks_after, hooks_mode)
+        _atomic_write(
+            manifest_path,
+            _json_document(manifest),
+            0o600,
+        )
+        transaction_path.unlink()
+    except OSError as error:
+        _restore_file(config_path, config_existed, config_before, config_mode)
+        _restore_file(hooks_path, hooks_existed, hooks_before, hooks_mode)
+        if manifest_path.is_file():
+            manifest_path.unlink()
+        if transaction_path.is_file():
+            transaction_path.unlink()
+        raise InstallationViolation(
+            f"installation transaction failed: {error}"
+        ) from error
+    return result
+
+
+def installation_status(codex_home: Path) -> InstallationStatus:
+    """Inspect one explicit Codex home without modifying it."""
+    installation_directory = codex_home / _INSTALLATION_DIRECTORY
+    violation = _installation_state_path_violation(installation_directory)
+    if violation is not None:
+        return InstallationStatus(
+            codex_home=codex_home,
+            state=InstallationState.INCOMPLETE,
+            details=(violation,),
+        )
+    lock_path = _operation_lock_path(installation_directory)
+    if lock_path.exists() or lock_path.is_symlink():
+        return InstallationStatus(
+            codex_home=codex_home,
+            state=InstallationState.INCOMPLETE,
+            details=("installation operation is in progress",),
+        )
+    return _installation_status_without_lock(codex_home)
+
+
+def _installation_status_without_lock(codex_home: Path) -> InstallationStatus:
+    installation_directory = codex_home / _INSTALLATION_DIRECTORY
+    transaction_path = installation_directory / _TRANSACTION_NAME
+    manifest_path = installation_directory / _MANIFEST_NAME
+    for path in (transaction_path, manifest_path):
+        if path.is_symlink():
+            return InstallationStatus(
+                codex_home=codex_home,
+                state=InstallationState.INCOMPLETE,
+                details=(f"installation state file is a symbolic link: {path.name}",),
+            )
+    if transaction_path.exists():
+        return InstallationStatus(
+            codex_home=codex_home,
+            state=InstallationState.INCOMPLETE,
+            details=("installation transaction is not complete",),
+        )
+    if not manifest_path.exists():
+        return InstallationStatus(
+            codex_home=codex_home,
+            state=InstallationState.NOT_INSTALLED,
+            details=(),
+        )
+    try:
+        manifest_document = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if (
+            not isinstance(manifest_document, dict)
+            or manifest_document.get("schema_version") != 1
+        ):
+            raise TypeError("unsupported installation manifest schema")
+        manifest = cast(dict[str, object], manifest_document)
+        if manifest.get("state") != "installed":
+            return InstallationStatus(
+                codex_home=codex_home,
+                state=InstallationState.INCOMPLETE,
+                details=("installation transaction is not complete",),
+            )
+        if not _installation_manifest_is_valid(manifest, "installed"):
+            raise TypeError("installation manifest is invalid")
+        details = _installation_modifications(codex_home, manifest)
+    except (
+        json.JSONDecodeError,
+        UnicodeDecodeError,
+        OSError,
+        KeyError,
+        TypeError,
+        AttributeError,
+    ):
+        return InstallationStatus(
+            codex_home=codex_home,
+            state=InstallationState.INCOMPLETE,
+            details=("installation manifest is invalid",),
+        )
+    return InstallationStatus(
+        codex_home=codex_home,
+        state=(InstallationState.MODIFIED if details else InstallationState.INSTALLED),
+        details=tuple(details),
+    )
+
+
+def rollback_user_config(codex_home: Path) -> RollbackResult:
+    """Remove unchanged managed entries while preserving user-owned content."""
+    installation_directory = codex_home / _INSTALLATION_DIRECTORY
+    violation = _installation_state_path_violation(installation_directory)
+    if violation is not None:
+        raise InstallationViolation(violation)
+    for path in (codex_home / "config.toml", codex_home / "hooks.json"):
+        violation = _file_target_violation(path)
+        if violation is not None:
+            raise InstallationViolation(violation)
+    with _installation_lock(installation_directory):
+        return _rollback_user_config_locked(codex_home)
+
+
+def _rollback_user_config_locked(codex_home: Path) -> RollbackResult:
+    installation_directory = codex_home / _INSTALLATION_DIRECTORY
+    manifest_path = installation_directory / _MANIFEST_NAME
+    transaction_path = installation_directory / _TRANSACTION_NAME
+    if transaction_path.exists():
+        try:
+            transaction_document = json.loads(
+                transaction_path.read_text(encoding="utf-8")
+            )
+        except (json.JSONDecodeError, UnicodeDecodeError, OSError) as error:
+            raise InstallationViolation(
+                "installation transaction journal is invalid"
+            ) from error
+        if not isinstance(transaction_document, dict):
+            raise InstallationViolation("installation transaction journal is invalid")
+        journal = cast(dict[str, object], transaction_document)
+        if journal.get("state") == "rolling-back":
+            return _resume_rollback_transaction(
+                codex_home,
+                journal,
+                manifest_path,
+                transaction_path,
+            )
+        if not _installation_manifest_is_valid(journal, "installing"):
+            raise InstallationViolation("installation transaction journal is invalid")
+        try:
+            _validate_recoverable_transaction(codex_home, journal)
+        except (KeyError, TypeError, AttributeError) as error:
+            raise InstallationViolation(
+                "installation transaction journal is invalid"
+            ) from error
+        config_manifest = cast(dict[str, object], journal["config"])
+        hooks_manifest = cast(dict[str, object], journal["hooks"])
+        config_target = _plan_install_recovery(
+            codex_home / "config.toml", config_manifest
+        )
+        hooks_target = _plan_install_recovery(codex_home / "hooks.json", hooks_manifest)
+        return _finish_rollback_transaction(
+            codex_home,
+            config_target,
+            hooks_target,
+            manifest_path,
+            transaction_path,
+        )
+
+    status = _installation_status_without_lock(codex_home)
+    if status.state is not InstallationState.INSTALLED:
+        detail = "; ".join(status.details) if status.details else status.state.value
+        raise InstallationViolation(f"installation cannot be rolled back: {detail}")
+    manifest = cast(
+        dict[str, object],
+        json.loads(manifest_path.read_text(encoding="utf-8")),
+    )
+    config_target = _plan_config_rollback(
+        codex_home / "config.toml",
+        cast(dict[str, object], manifest["config"]),
+    )
+    hooks_target = _plan_hooks_rollback(
+        codex_home / "hooks.json",
+        cast(dict[str, object], manifest["hooks"]),
+    )
+    try:
+        _atomic_write(
+            transaction_path,
+            _json_document(_rollback_journal_document(config_target, hooks_target)),
+            0o600,
+        )
+    except OSError as error:
+        raise InstallationViolation(
+            f"rollback transaction could not start: {error}"
+        ) from error
+    return _finish_rollback_transaction(
+        codex_home,
+        config_target,
+        hooks_target,
+        manifest_path,
+        transaction_path,
+    )
+
+
+def _resume_rollback_transaction(
+    codex_home: Path,
+    journal: dict[str, object],
+    manifest_path: Path,
+    transaction_path: Path,
+) -> RollbackResult:
+    config_target, hooks_target = _parse_rollback_targets(journal)
+    return _finish_rollback_transaction(
+        codex_home,
+        config_target,
+        hooks_target,
+        manifest_path,
+        transaction_path,
+    )
+
+
+def _finish_rollback_transaction(
+    codex_home: Path,
+    config_target: _RollbackTarget,
+    hooks_target: _RollbackTarget,
+    manifest_path: Path,
+    transaction_path: Path,
+) -> RollbackResult:
+    _validate_rollback_target(codex_home / "config.toml", config_target)
+    _validate_rollback_target(codex_home / "hooks.json", hooks_target)
+    try:
+        if config_target.action is not RollbackFileAction.UNCHANGED:
+            _apply_rollback_target(codex_home / "config.toml", config_target)
+        if hooks_target.action is not RollbackFileAction.UNCHANGED:
+            _apply_rollback_target(codex_home / "hooks.json", hooks_target)
+        manifest_path.unlink(missing_ok=True)
+        transaction_path.unlink(missing_ok=True)
+    except OSError as error:
+        raise InstallationViolation(
+            f"rollback transaction is incomplete: {error}"
+        ) from error
+    return RollbackResult(
+        codex_home=codex_home,
+        config_action=config_target.action,
+        hooks_action=hooks_target.action,
+    )

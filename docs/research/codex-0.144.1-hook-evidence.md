@@ -216,6 +216,31 @@ Codex encrypts the `message` field before it reaches this `PreToolUse` hook. The
 validator deliberately checks only that this required field is a non-empty
 string; it does not need or attempt to inspect message contents.
 
+### Generated user installation
+
+The stage-6 release probe used the package console scripts rather than a
+handwritten configuration. It ran `codex-subagent-router install` against a new
+temporary `CODEX_HOME`, which generated all four description-only role entries,
+all three hook groups, absolute launcher commands, ten-second timeouts, and the
+private installation receipt. A separate CLI smoke path completed
+`install -> status -> rollback` without touching the normal user home.
+
+The exact retained Codex CLI `0.144.1` binary then started two fresh,
+non-persisted sessions from empty temporary working directories. As in the
+earlier adapter probes, the disposable home received only an authentication
+snapshot whose contents were never displayed. Rules were ignored and hook trust
+was bypassed only for these vetted temporary runs.
+
+| Installed configuration probe | Observed result |
+|---|---|
+| Generated `SessionStart` group | Codex recorded `hook: SessionStart Completed`; the root returned `INSTALL_HOOK_OK` only after observing the installed routing-guidance sentinel. |
+| Generated role and `SubagentStart` group | After invalid spawn attempts were correctly denied by `PreToolUse`, a valid managed `reviewer` child ran and returned `ROLE_INSTALL_OK` only after observing the installed reviewer contract. |
+
+These probes verify fresh-session discovery through the actual installer output,
+including description-only role loading and the installed absolute command
+path. They do not grant production hook trust: normal users must still review
+the new hooks and open a fresh session after installation.
+
 ### Description-only role and child context
 
 The representative role declaration was:
@@ -320,5 +345,10 @@ mutability, not this runtime failure behavior.
   upgrade.
 - The installed-version probes demonstrate this environment, not a universal
   product guarantee.
-- Hook trust, fresh-session role discovery, timeout behavior, and rollback still
-  require isolated end-to-end probes before installation tooling is released.
+- Normal hook trust approval remains a manual Codex UI decision; automated
+  probes used the dangerous bypass only inside disposable homes.
+- The configured ten-second timeout and Codex's fail-open timeout behavior are
+  covered by generated-document tests and matching-version source evidence, not
+  by deliberately stalling the production handler.
+- Rollback behavior is verified on real temporary files through both public API
+  and console-command tests; it is not a Codex runtime lifecycle event.

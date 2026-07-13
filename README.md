@@ -7,8 +7,10 @@ The repository currently provides the stable policy seam; strict JSON value
 types for the `PreToolUse`, `SessionStart`, and `SubagentStart` hook boundaries;
 and deny-only validation for routed `spawn_agent` calls. Root-session routing
 guidance, managed subagent role-context handlers, and executable JSON command
-adapters are also available. The command path has been verified against an
-isolated Codex CLI `0.144.1`; installation tooling is the remaining deliverable.
+adapters are also available. Explicit user-level installation, status, safe
+rollback, and their command-line entry points are implemented. The complete
+generated configuration path has been verified against an isolated Codex CLI
+`0.144.1` fresh session.
 
 ## Technology
 
@@ -18,8 +20,8 @@ isolated Codex CLI `0.144.1`; installation tooling is the remaining deliverable.
 - Ruff linting and formatting
 - Strict mypy type checking
 - `src/` package layout
-- Pure hook handlers before command and installation adapters
-- Markdown role contracts and TOML installation metadata in later stages
+- Pure hook handlers behind command and installation adapters
+- Description-only managed roles and recoverable user-configuration transactions
 
 ## Automatic routing policy
 
@@ -113,6 +115,65 @@ python -m codex_subagent_router.commands subagent-start
 Each command reads one JSON document from stdin. Success exits `0`; protocol
 errors are written to stderr and exit `1`; command usage errors exit `2`.
 
+## User installation
+
+Install the package so both console scripts are on `PATH`, then inspect the
+planned changes against an explicit Codex home:
+
+```bash
+codex-subagent-router plan --codex-home "$CODEX_HOME"
+codex-subagent-router install --codex-home "$CODEX_HOME"
+codex-subagent-router status --codex-home "$CODEX_HOME"
+```
+
+`--codex-home` is always required. The CLI never falls back to `~/.codex`.
+`plan` and `install` locate `codex-subagent-router-hook` on `PATH`; an explicit
+absolute launcher can instead be selected with `--hook-executable PATH`.
+Machine-readable JSON is written to stdout. Usage errors exit `2`, installation
+or planning conflicts exit `1`, and successful operations exit `0`.
+
+The installer adds description-only declarations for the four managed roles to
+`config.toml`, adds the three command-hook groups to `hooks.json`, and writes a
+private receipt under `codex-subagent-router/installation.json`. Existing bytes
+and file modes are captured before a change. Each replacement is atomic, and a
+persisted journal makes an interrupted two-file transaction recoverable.
+Configuration files and state paths that are symbolic links are rejected.
+Compatible entries that already exist are verified but are not claimed as
+installer-owned.
+
+Codex does not reliably hot-reload ordinary user configuration files. After a
+successful install, review and trust the new user hooks in Codex, then start a
+fresh session. The installer deliberately does not write hook trust state and
+does not enable `--dangerously-bypass-hook-trust`. Hook launch failures and
+timeouts are fail-open in Codex, so this router remains a policy guardrail, not
+a security or spending-isolation boundary.
+
+Rollback is explicit:
+
+```bash
+codex-subagent-router rollback --codex-home "$CODEX_HOME"
+```
+
+If the installed files are unchanged, rollback restores their exact original
+bytes and modes or removes files the installer created. If unrelated content
+was added later, rollback removes only still-intact owned blocks and hook groups.
+It refuses to proceed when owned content has been modified, when the receipt is
+unhealthy, or while another installation operation holds the lock.
+
+The same transaction seam is available to Python callers. Both paths must be
+explicit; importing the package never reads user configuration:
+
+```python
+from pathlib import Path
+
+from codex_subagent_router import install_user_config, plan_user_installation
+
+codex_home = Path("/explicit/codex/home")
+hook_command = ("/absolute/path/to/codex-subagent-router-hook",)
+plan = plan_user_installation(codex_home, hook_command)
+result = install_user_config(codex_home, hook_command)
+```
+
 Policy rationale and protocol evidence are documented in
 [`docs/routing-policy.md`](docs/routing-policy.md),
 [`docs/role-contracts.md`](docs/role-contracts.md), and
@@ -142,7 +203,7 @@ uv build
 3. Deny-only `PreToolUse` validator. **Complete.**
 4. `SessionStart` routing guidance and `SubagentStart` role contracts. **Complete.**
 5. Isolated end-to-end hook probes. **Complete.**
-6. User-level installation and rollback tooling.
+6. User-level installation and rollback tooling. **Complete.**
 
 ## Prohibitions
 
