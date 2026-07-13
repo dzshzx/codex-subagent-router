@@ -1,5 +1,9 @@
 # Codex Subagent Router
 
+[![CI](https://github.com/dzshzx/codex-subagent-router/actions/workflows/ci.yml/badge.svg)](https://github.com/dzshzx/codex-subagent-router/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/codex-subagent-router)](https://pypi.org/project/codex-subagent-router/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 `codex-subagent-router` is an independent Python project for developing and
 validating model, effort, role, and context-routing policy for Codex subagents.
 
