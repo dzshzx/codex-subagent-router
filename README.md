@@ -191,12 +191,24 @@ Configuration files and state paths that are symbolic links are rejected.
 Compatible entries that already exist are verified but are not claimed as
 installer-owned.
 
+The installer writes the absolute launcher path into `hooks.json`, so install
+the package into an environment that outlives the current shell — a dedicated
+virtual environment or a persistent tool install, not a one-shot `uvx` run or
+a temporary environment. A launcher whose environment was later deleted is
+reported by `status` as no longer executable.
+
 Codex does not reliably hot-reload ordinary user configuration files. After a
 successful install, review and trust the new user hooks in Codex, then start a
 fresh session. The installer deliberately does not write hook trust state and
 does not enable `--dangerously-bypass-hook-trust`. Hook launch failures and
 timeouts are fail-open in Codex, so this router remains a policy guardrail, not
 a security or spending-isolation boundary.
+
+Confirm enforcement in the fresh session with a smoke test that must fail:
+request a routed child with reasoning effort `ultra` and expect the denial
+reason `child reasoning effort 'ultra' is prohibited`. If the spawn is not
+denied, hook trust has not taken effect and routing enforcement is silently
+disabled.
 
 Rollback is explicit:
 
@@ -209,6 +221,12 @@ bytes and modes or removes files the installer created. If unrelated content
 was added later, rollback removes only still-intact owned blocks and hook groups.
 It refuses to proceed when owned content has been modified, when the receipt is
 unhealthy, or while another installation operation holds the lock.
+
+Uninstall in this order: run `rollback` first, then remove the package. The
+rollback CLI and the hook launcher live in the package environment, so
+removing the package first leaves managed hook groups pointing at a missing
+launcher. If that happens, reinstall the same package version and roll back,
+or repair `hooks.json` manually.
 
 The same transaction seam is available to Python callers. Both paths must be
 explicit; importing the package never reads user configuration:
