@@ -23,6 +23,10 @@ classifiers = [
 ]
 dependencies = []
 
+[project.urls]
+Repository = "https://github.com/dzshzx/codex-subagent-router"
+Issues = "https://github.com/dzshzx/codex-subagent-router/issues"
+
 [project.scripts]
 codex-subagent-router = "codex_subagent_router.install_commands:main"
 codex-subagent-router-hook = "codex_subagent_router.commands:main"
