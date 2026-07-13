@@ -154,7 +154,7 @@ def test_session_start_injects_routing_guidance_derived_from_project_sources() -
     assert session_start_context(hook_input) == SessionStartOutput(
         additional_context="""Codex subagent routing policy for this root session:
 
-Choose every routed child explicitly with agent_type, model, reasoning_effort, and fork_turns.
+Choose every routed child explicitly with agent_type, model, and reasoning_effort.
 
 Managed roles:
 - researcher: Primary-source researcher for external documentation, APIs, specifications, and upstream code.
@@ -173,7 +173,7 @@ Conditional escalation profiles in ascending capability order:
 - gpt-5.6-sol / xhigh
 - gpt-5.6-sol / max
 
-Use the lowest credible routine profile. Escalate to xhigh or max only when the task requires it. Child effort ultra is prohibited. Use fork_turns="none" for independent work or a positive integer string for limited recent context; do not use full-history all with explicit routing. Do not omit routed fields or silently rewrite them."""
+Use the lowest credible routine profile. Escalate to xhigh or max only when the task requires it. Child effort ultra is prohibited. On MultiAgent V2, also set task_name and fork_turns="none" for independent work or a positive integer string for limited recent context; do not use full-history all with explicit routing. On stable MultiAgent V1, leave fork_context false or omitted; do not spawn full-history forks with explicit routing. Do not omit routed fields or silently rewrite them."""
     )
 
 

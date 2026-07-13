@@ -33,6 +33,13 @@ minimum version, or a claim about unlisted releases.
 |---|---|---|
 | `0.144.1` | Strict hook protocol, command adapters, generated user installation, and fresh-session role/Hook discovery | [`docs/research/codex-0.144.1-hook-evidence.md`](docs/research/codex-0.144.1-hook-evidence.md) |
 
+Codex ships two multi-agent tool generations: stable `multi_agent`
+(MultiAgent V1) is enabled by default, while `multi_agent_v2` is a separately
+enabled, under-development preview. Both generations register the same
+`spawn_agent` hook tool name, so the validator supports both input shapes
+through one capability seam and normal spawns work on a default V1
+installation without enabling the preview.
+
 Unlisted Codex versions are unverified. The protocol boundary is deliberately
 strict, while Codex command-hook failures are fail-open; an upstream schema or
 tool-name change can therefore disable routing enforcement instead of safely
@@ -109,10 +116,17 @@ event and permission values, non-JSON numeric constants, and numeric overflow.
 or subagent-context output shapes, whose string fields are validated when their
 value objects are constructed.
 
-`validate_pre_tool_use` ignores non-spawn tool calls. For verified spawn tool
-names, it requires the explicit V2 fields, validates the model/effort pair from
-the policy seam, permits only `fork_turns="none"` or a positive integer string,
-and returns either a deny value or `None`. It never rewrites tool input.
+`validate_pre_tool_use` ignores non-spawn tool calls. Stable MultiAgent V1 and
+MultiAgent V2 register the same hook tool name, so for verified spawn tool
+names the validator selects the contract from the input shape: a `task_name`
+or `fork_turns` field selects the V2 contract, and any other object is
+validated as a stable V1 spawn. Both variants must route explicitly with
+`agent_type`, `model`, and `reasoning_effort` validated against the policy
+seam. V2 spawns additionally require `message`, `task_name`, and
+`fork_turns="none"` or a positive integer string; V1 spawns require exactly
+one of `message` or `items` and must leave `fork_context` false or omitted.
+The validator returns either a deny value or `None` and never rewrites tool
+input.
 
 `session_start_context` emits routing guidance only for a root `startup`; the
 text is derived from the executable route and role sources. `subagent_start_context`

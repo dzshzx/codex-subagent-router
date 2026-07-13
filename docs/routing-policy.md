@@ -42,10 +42,11 @@ They are selection guidance, not promises about a particular task.
    is not permission for a hook to guess.
 5. Keep role identity independent of compute. The same stable role may be
    spawned at different supported profiles.
-6. Keep context selection explicit. `fork_turns="all"` intentionally inherits
+6. Keep context selection explicit. A full-history fork (`fork_turns="all"` on
+   MultiAgent V2, `fork_context=true` on stable V1) intentionally inherits
    full parent configuration and cannot carry per-spawn role/model/effort
-   overrides in Codex 0.144.1. Route-managed spawns therefore use `none` or a
-   positive integer string.
+   overrides. Route-managed spawns therefore use `none` or a positive integer
+   string on V2 and leave `fork_context` false or omitted on V1.
 7. A protocol adapter derives accepted effort values from the policy seam. It
    must not copy a second effort allowlist.
 
@@ -72,16 +73,31 @@ installed 0.144.1 probes. Other tool names are ignored without inspecting their
 inputs. Supporting another tool name requires new versioned evidence; substring
 matching inside the handler is not a fallback.
 
-For a recognized spawn, `tool_input` must be an object containing only:
+For a recognized spawn, `tool_input` must be an object. Stable MultiAgent V1
+and MultiAgent V2 register the same hook tool name, so the validator selects
+the contract from the input shape: a `task_name` or `fork_turns` field selects
+the V2 contract; otherwise the stable V1 contract applies.
+
+V2 contract — the object contains only:
 
 - required `message`, `task_name`, `agent_type`, `model`,
   `reasoning_effort`, and `fork_turns` strings;
 - optional non-empty `service_tier` string.
 
-All required strings must be non-empty. The model/effort pair must equal one of
-the profiles returned by the policy seam. `fork_turns` must be exactly `none` or
-an ASCII positive integer string. Full-history `all` is denied because routed
-spawns provide explicit role and compute.
+`fork_turns` must be exactly `none` or an ASCII positive integer string.
+Full-history `all` is denied because routed spawns provide explicit role and
+compute.
+
+Stable V1 contract — the object contains only:
+
+- required `agent_type`, `model`, and `reasoning_effort` strings;
+- exactly one of a non-empty `message` string or a non-empty `items` array;
+- optional non-empty `service_tier` string;
+- optional boolean `fork_context`, which must be `false`: a full-history fork
+  inherits parent routing and is denied for explicitly routed spawns.
+
+In both shapes all required strings must be non-empty and the model/effort
+pair must equal one of the profiles returned by the policy seam.
 
 This stage deliberately validates only that `agent_type` is explicit and
 non-empty. It does not own a role allowlist: managed role selection and context
