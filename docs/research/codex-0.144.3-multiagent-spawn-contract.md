@@ -1,5 +1,13 @@
 # Codex CLI multi-agent `spawn_agent` 契约调研（tag `rust-v0.144.3`）
 
+> **重要批注（2026-07-13 installed-binary 探针）**：本文档描述的是 `rust-v0.144.3`
+> **tag 源码**。随后对本机安装的 `codex-cli 0.144.3` 发行二进制（standalone
+> musl release）的隔离探针表明**发行二进制与该 tag 存在漂移**：实测 hook
+> `tool_name` 仍为 `collaborationspawn_agent`（未出现 §3.2 的归一化），且默认
+> stable 工具集强制 V2 形状契约（`task_name` 必填、使用 `fork_turns`），§1 的
+> V1 契约未在发行二进制中观察到。发布判断以实测为准，见
+> [`codex-0.144.3-hook-evidence.md`](codex-0.144.3-hook-evidence.md)。
+>
 > 数据源：`openai/codex` 仓库 `rust-v0.144.3` tag 的原始源码，经 `gh api ... -H "Accept: application/vnd.github.raw"` 抓取。
 > 所有行号均指向该 tag 下对应文件的原始内容。字段名 / 代码标识符保持英文原文。
 

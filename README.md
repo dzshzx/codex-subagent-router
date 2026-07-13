@@ -36,6 +36,13 @@ minimum version, or a claim about unlisted releases.
 | Codex CLI | Verified surfaces | Evidence |
 |---|---|---|
 | `0.144.1` | Strict hook protocol, command adapters, generated user installation, and fresh-session role/Hook discovery | [`docs/research/codex-0.144.1-hook-evidence.md`](docs/research/codex-0.144.1-hook-evidence.md) |
+| `0.144.3` | Root guidance, deny-before-creation, managed role context, fail-open behavior, generated installation, status, rollback, and both spawn shapes of the capability seam against the shipped stable toolset | [`docs/research/codex-0.144.3-hook-evidence.md`](docs/research/codex-0.144.3-hook-evidence.md) |
+
+The installed `0.144.3` release binary drifts from its source tag: it still
+reports the flattened `collaborationspawn_agent` hook tool name and its
+default stable spawn handler enforces the V2-shaped input contract. Release
+decisions therefore rest on installed-binary probes, never on tag source
+reading alone.
 
 Codex ships two multi-agent tool generations: stable `multi_agent`
 (MultiAgent V1) is enabled by default, while `multi_agent_v2` is a separately
