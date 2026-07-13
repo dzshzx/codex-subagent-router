@@ -22,6 +22,10 @@ see [Codex compatibility](#codex-compatibility) for its exact scope.
 - `src/` package layout
 - Pure hook handlers behind command and installation adapters
 - Description-only managed roles and recoverable user-configuration transactions
+- POSIX-only verified installation and rollback (POSIX file modes and
+  `shlex` quoting); Windows is unverified
+- Test suite gated on Python 3.11 (declared minimum) and the current
+  development Python
 
 ## Codex compatibility
 
