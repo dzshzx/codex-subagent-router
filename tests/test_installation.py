@@ -32,7 +32,7 @@ def _hook_executable(tmp_path: Path) -> Path:
 def test_empty_codex_home_plan_creates_managed_roles_and_hooks(
     tmp_path: Path,
 ) -> None:
-    hook_executable = tmp_path / "bin" / "codex-subagent-router-hook"
+    hook_executable = _hook_executable(tmp_path)
 
     actual = plan_user_installation(tmp_path, (str(hook_executable),))
 
@@ -77,7 +77,7 @@ description = "Read-only reviewer for one bounded diff axis."
 
     actual = plan_user_installation(
         tmp_path,
-        (str(tmp_path / "bin" / "codex-subagent-router-hook"),),
+        (str(_hook_executable(tmp_path)),),
     )
 
     assert actual == InstallationPlan(
@@ -608,6 +608,18 @@ def test_plan_requires_rollback_before_a_different_reinstall(tmp_path: Path) -> 
     assert actual.conflicts == (
         "existing installation differs from the requested configuration; "
         "roll it back before reinstalling",
+    )
+    assert actual.config_action is InstallationFileAction.UNCHANGED
+    assert actual.hooks_action is InstallationFileAction.UNCHANGED
+
+
+def test_plan_reports_a_missing_hook_launcher(tmp_path: Path) -> None:
+    missing_executable = tmp_path / "bin" / "codex-subagent-router-hook"
+
+    actual = plan_user_installation(tmp_path, (str(missing_executable),))
+
+    assert actual.conflicts == (
+        f"hook executable is not an executable file: {missing_executable}",
     )
     assert actual.config_action is InstallationFileAction.UNCHANGED
     assert actual.hooks_action is InstallationFileAction.UNCHANGED

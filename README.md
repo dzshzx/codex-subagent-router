@@ -180,10 +180,11 @@ directory.
 
 `plan` reports every condition that would make `install` refuse — an
 incomplete transaction journal, a held operation lock, an unhealthy or
-diverging existing installation — as an explicit conflict instead of showing
-a clean plan that later fails. `status` additionally reports a managed hook
-launcher that is no longer an executable file; that environment problem does
-not block rollback.
+diverging existing installation, and a hook launcher that is not an
+executable file — as an explicit conflict instead of showing a clean plan
+that later fails. `status` additionally reports a managed hook launcher that
+is no longer an executable file; that environment problem does not block
+rollback.
 `plan` and `install` locate `codex-subagent-router-hook` on `PATH`; an explicit
 absolute launcher can instead be selected with `--hook-executable PATH`.
 Machine-readable JSON is written to stdout. Usage errors exit `2`, installation

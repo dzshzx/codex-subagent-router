@@ -160,6 +160,13 @@ def plan_user_installation(
             "existing installation differs from the requested configuration; "
             "roll it back before reinstalling",
         )
+    # install validates the hook command after its conflict checks; mirror
+    # that order so plan surfaces the same blocker instead of a clean plan.
+    if not plan.conflicts:
+        try:
+            _validate_hook_command(hook_command)
+        except InstallationViolation as violation:
+            return _blocked_plan(codex_home, str(violation))
     return plan
 
 
