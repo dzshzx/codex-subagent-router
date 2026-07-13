@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,6 +8,8 @@ version = "0.1.2"
 description = "Policy and hook adapters for routing Codex subagents"
 readme = "README.md"
 requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "dzshzx", email = "dzshzx0930@gmail.com" }]
 keywords = ["codex", "hooks", "subagent", "routing", "policy"]
 classifiers = [
