@@ -11,6 +11,11 @@ commit
 [`44918ea`](https://github.com/openai/codex/commit/44918ea10c0f99151c6710411b4322c2f5c96bea).
 It is evidence for project decisions, not a runtime dependency.
 
+This file is a versioned historical record, not a package version pin. Future
+Codex releases receive separate evidence files after the same schema, lifecycle,
+installation, and isolated-session checks; this record and its immutable source
+links are not rewritten to follow `latest`.
+
 The current project policy supersedes one historical assumption from the source
 research: child effort `max` is supported and child effort `ultra` alone is
 prohibited.

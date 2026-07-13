@@ -39,7 +39,7 @@ class ProtocolViolation(ValueError):
 
 
 class PermissionMode(StrEnum):
-    """Permission modes emitted by Codex 0.144.1 hook inputs."""
+    """Permission modes accepted by the supported Codex hook contract."""
 
     DEFAULT = "default"
     ACCEPT_EDITS = "acceptEdits"
@@ -49,7 +49,7 @@ class PermissionMode(StrEnum):
 
 
 class SessionSource(StrEnum):
-    """Sources emitted by Codex 0.144.1 ``SessionStart`` inputs."""
+    """Sources accepted by the supported Codex ``SessionStart`` contract."""
 
     STARTUP = "startup"
     RESUME = "resume"

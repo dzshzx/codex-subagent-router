@@ -9,8 +9,8 @@ and deny-only validation for routed `spawn_agent` calls. Root-session routing
 guidance, managed subagent role-context handlers, and executable JSON command
 adapters are also available. Explicit user-level installation, status, safe
 rollback, and their command-line entry points are implemented. The complete
-generated configuration path has been verified against an isolated Codex CLI
-`0.144.1` fresh session.
+generated configuration path has a recorded isolated Codex CLI verification;
+see [Codex compatibility](#codex-compatibility) for its exact scope.
 
 ## Technology
 
@@ -22,6 +22,25 @@ generated configuration path has been verified against an isolated Codex CLI
 - `src/` package layout
 - Pure hook handlers behind command and installation adapters
 - Description-only managed roles and recoverable user-configuration transactions
+
+## Codex compatibility
+
+Runtime code does not pin, compare, or branch on the Codex CLI version. A
+version listed here is a completed compatibility probe, not a runtime lock, a
+minimum version, or a claim about unlisted releases.
+
+| Codex CLI | Verified surfaces | Evidence |
+|---|---|---|
+| `0.144.1` | Strict hook protocol, command adapters, generated user installation, and fresh-session role/Hook discovery | [`docs/research/codex-0.144.1-hook-evidence.md`](docs/research/codex-0.144.1-hook-evidence.md) |
+
+Unlisted Codex versions are unverified. The protocol boundary is deliberately
+strict, while Codex command-hook failures are fail-open; an upstream schema or
+tool-name change can therefore disable routing enforcement instead of safely
+falling back. Do not declare another version verified until its official
+schemas and source behavior have been compared and its isolated root-start,
+spawn-denial, managed-child, generated-installation, status, and rollback
+probes pass. Keep each version's evidence as a separate record rather than
+replacing old links with an unpinned `latest` reference.
 
 ## Automatic routing policy
 
@@ -211,3 +230,5 @@ uv build
 - Tests and package imports must not read or modify user-level Codex configuration.
 - Repository code must not contain machine-specific absolute paths.
 - Runtime policy code must not add hidden fallbacks or duplicate policy sources.
+- Runtime package code must not pin or branch on a Codex CLI version; versioned
+  compatibility claims belong in reproducible evidence records.
