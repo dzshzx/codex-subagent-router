@@ -39,8 +39,8 @@ minimum version, or a claim about unlisted releases.
 
 | Codex CLI | Verified surfaces | Evidence |
 |---|---|---|
-| `0.144.1` | Strict hook protocol, command adapters, generated user installation, and fresh-session role/Hook discovery | [`docs/research/codex-0.144.1-hook-evidence.md`](https://github.com/dzshzx/codex-subagent-router/blob/main/docs/research/codex-0.144.1-hook-evidence.md) |
-| `0.144.3` | Root guidance, deny-before-creation, managed role context, fail-open behavior, generated installation, status, rollback, and both spawn shapes of the capability seam against the shipped stable toolset | [`docs/research/codex-0.144.3-hook-evidence.md`](https://github.com/dzshzx/codex-subagent-router/blob/main/docs/research/codex-0.144.3-hook-evidence.md) |
+| `0.144.1` | Strict hook protocol, command adapters, generated user installation, and fresh-session role/Hook discovery | [`docs/research/codex-0.144.1-hook-evidence.md`](https://github.com/dzshzx/codex-subagent-router/blob/master/docs/research/codex-0.144.1-hook-evidence.md) |
+| `0.144.3` | Root guidance, deny-before-creation, managed role context, fail-open behavior, generated installation, status, rollback, and both spawn shapes of the capability seam against the shipped stable toolset | [`docs/research/codex-0.144.3-hook-evidence.md`](https://github.com/dzshzx/codex-subagent-router/blob/master/docs/research/codex-0.144.3-hook-evidence.md) |
 
 The installed `0.144.3` release binary drifts from its source tag: it still
 reports the flattened `collaborationspawn_agent` hook tool name and its
@@ -255,9 +255,9 @@ result = install_user_config(codex_home, hook_command)
 ```
 
 Policy rationale and protocol evidence are documented in
-[`docs/routing-policy.md`](https://github.com/dzshzx/codex-subagent-router/blob/main/docs/routing-policy.md),
-[`docs/role-contracts.md`](https://github.com/dzshzx/codex-subagent-router/blob/main/docs/role-contracts.md), and
-[`docs/research/`](https://github.com/dzshzx/codex-subagent-router/tree/main/docs/research/).
+[`docs/routing-policy.md`](https://github.com/dzshzx/codex-subagent-router/blob/master/docs/routing-policy.md),
+[`docs/role-contracts.md`](https://github.com/dzshzx/codex-subagent-router/blob/master/docs/role-contracts.md), and
+[`docs/research/`](https://github.com/dzshzx/codex-subagent-router/tree/master/docs/research/).
 
 ## Development
 
