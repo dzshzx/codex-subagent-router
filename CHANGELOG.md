@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.3 — 2026-07-13
+
+### Fixed
+
+- Documentation links in the package description are branch-agnostic
+  (`blob/HEAD`), so they survive a default-branch rename. The `0.1.2`
+  description pointed at a branch that no longer exists.
+
 ## 0.1.2 — 2026-07-13
 
 First publicly released version.
