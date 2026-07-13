@@ -7,8 +7,9 @@ from pathlib import Path
 from typing import cast
 
 from ._installation_files import (
-    atomic_write,
     file_target_violation,
+    guarded_remove,
+    guarded_replace,
     is_valid_mode,
     is_valid_sha256,
     json_document,
@@ -213,10 +214,66 @@ def validate_rollback_target(path: Path, target: RollbackTarget) -> None:
 
 
 def apply_rollback_target(path: Path, target: RollbackTarget) -> None:
+    """Apply one rollback target, re-verifying the file at commit time.
+
+    The pre-flight validation and this commit-time check are separated by
+    other file operations, so the current content is read again immediately
+    before the change; anything that is neither the recorded before-state nor
+    the already-applied target fails closed.
+    """
+    violation = file_target_violation(path)
+    if violation is not None:
+        raise InstallationViolation(violation)
+    current = path.read_bytes() if path.exists() else None
     if target.content is None:
-        path.unlink(missing_ok=True)
+        if current is None:
+            return
+        if sha256(current) != target.before_sha256:
+            raise InstallationViolation(
+                f"rollback transaction has user modifications: {path.name}"
+            )
+        guarded_remove(path, current)
         return
-    atomic_write(path, target.content, cast(int, target.mode))
+    if current == target.content:
+        return
+    if current is None:
+        raise InstallationViolation(
+            f"rollback transaction has a missing user file: {path.name}"
+        )
+    if sha256(current) != target.before_sha256:
+        raise InstallationViolation(
+            f"rollback transaction has user modifications: {path.name}"
+        )
+    guarded_replace(path, current, target.content, cast(int, target.mode))
+
+
+def undo_written_file(
+    path: Path,
+    original: bytes | None,
+    original_mode: int,
+    written: bytes,
+) -> str | None:
+    """Undo one file replacement made by a failed installation transaction.
+
+    Returns a detail string when the file was left untouched because its
+    current content is no longer the transaction's own replacement.
+    """
+    violation = file_target_violation(path)
+    if violation is not None:
+        return f"{path.name} was left in place: {violation}"
+    current = path.read_bytes() if path.exists() else None
+    if current == original:
+        return None
+    if current != written:
+        return f"{path.name} was modified concurrently and was left in place"
+    try:
+        if original is None:
+            guarded_remove(path, written)
+        else:
+            guarded_replace(path, written, original, original_mode)
+    except InstallationViolation:
+        return f"{path.name} was modified concurrently and was left in place"
+    return None
 
 
 def _original_content(manifest: dict[str, object]) -> bytes:

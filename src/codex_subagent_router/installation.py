@@ -15,6 +15,9 @@ from ._installation_files import (
     file_target_violation as _file_target_violation,
 )
 from ._installation_files import (
+    guarded_replace as _guarded_replace,
+)
+from ._installation_files import (
     installation_lock as _installation_lock,
 )
 from ._installation_files import (
@@ -40,9 +43,6 @@ from ._installation_files import (
 )
 from ._installation_files import (
     render_role_block as _render_role_block,
-)
-from ._installation_files import (
-    restore_file as _restore_file,
 )
 from ._installation_files import (
     sha256 as _sha256,
@@ -81,6 +81,9 @@ from ._installation_rollback import (
     rollback_journal_document as _rollback_journal_document,
 )
 from ._installation_rollback import (
+    undo_written_file as _undo_written_file,
+)
+from ._installation_rollback import (
     validate_rollback_target as _validate_rollback_target,
 )
 from ._installation_types import (
@@ -109,14 +112,40 @@ def plan_user_installation(
     """Plan installation into one explicit Codex home without writing files."""
     config_path = codex_home / "config.toml"
     hooks_path = codex_home / "hooks.json"
-    for path in (config_path, hooks_path):
+    violation = _first_target_violation(config_path, hooks_path)
+    if violation is not None:
+        return _blocked_plan(codex_home, violation)
+    return _plan_from_snapshots(
+        codex_home,
+        hook_command,
+        _snapshot(config_path),
+        _snapshot(hooks_path),
+    )
+
+
+def _first_target_violation(*paths: Path) -> str | None:
+    for path in paths:
         violation = _file_target_violation(path)
         if violation is not None:
-            return _blocked_plan(codex_home, violation)
+            return violation
+    return None
+
+
+def _snapshot(path: Path) -> bytes | None:
+    return path.read_bytes() if path.exists() else None
+
+
+def _plan_from_snapshots(
+    codex_home: Path,
+    hook_command: tuple[str, ...],
+    config_snapshot: bytes | None,
+    hooks_snapshot: bytes | None,
+) -> InstallationPlan:
+    """Derive the plan from the exact snapshots a transaction commits against."""
     existing_roles: dict[str, object] = {}
-    if config_path.exists():
+    if config_snapshot is not None:
         try:
-            config = tomllib.loads(config_path.read_text(encoding="utf-8"))
+            config = tomllib.loads(config_snapshot.decode("utf-8"))
         except (tomllib.TOMLDecodeError, UnicodeDecodeError):
             return _blocked_plan(codex_home, "config.toml is not valid TOML")
         agents = config.get("agents")
@@ -146,9 +175,9 @@ def plan_user_installation(
         )
     managed_hook_groups = _managed_hook_groups(hook_command)
     hook_events_to_add = list(managed_hook_groups)
-    if hooks_path.exists():
+    if hooks_snapshot is not None:
         try:
-            hooks_document = json.loads(hooks_path.read_text(encoding="utf-8"))
+            hooks_document = json.loads(hooks_snapshot.decode("utf-8"))
         except (json.JSONDecodeError, UnicodeDecodeError):
             return _blocked_plan(codex_home, "hooks.json is not valid JSON")
         if not isinstance(hooks_document, dict):
@@ -189,7 +218,7 @@ def plan_user_installation(
         config_action=(
             (
                 InstallationFileAction.UPDATE
-                if config_path.exists()
+                if config_snapshot is not None
                 else InstallationFileAction.CREATE
             )
             if roles_to_add
@@ -198,7 +227,7 @@ def plan_user_installation(
         hooks_action=(
             (
                 InstallationFileAction.UPDATE
-                if hooks_path.exists()
+                if hooks_snapshot is not None
                 else InstallationFileAction.CREATE
             )
             if hook_events_to_add
@@ -256,7 +285,22 @@ def _install_user_config_locked(
             raise InstallationViolation(
                 f"existing installation state is not healthy: {detail}"
             )
-    plan = plan_user_installation(codex_home, hook_command)
+    config_path = codex_home / "config.toml"
+    hooks_path = codex_home / "hooks.json"
+    target_violation = _first_target_violation(config_path, hooks_path)
+    if target_violation is not None:
+        config_before: bytes | None = None
+        hooks_before: bytes | None = None
+        plan = _blocked_plan(codex_home, target_violation)
+    else:
+        config_before = _snapshot(config_path)
+        hooks_before = _snapshot(hooks_path)
+        plan = _plan_from_snapshots(
+            codex_home,
+            hook_command,
+            config_before,
+            hooks_before,
+        )
     if manifest_path.is_file() and (
         plan.conflicts
         or plan.config_action is not InstallationFileAction.UNCHANGED
@@ -270,8 +314,6 @@ def _install_user_config_locked(
         raise InstallationViolation("; ".join(plan.conflicts))
     _validate_hook_command(hook_command)
 
-    config_path = codex_home / "config.toml"
-    hooks_path = codex_home / "hooks.json"
     result = InstallationResult(
         codex_home=codex_home,
         config_path=config_path,
@@ -286,17 +328,17 @@ def _install_user_config_locked(
         and manifest_path.exists()
     ):
         return result
-    config_existed = config_path.exists()
-    hooks_existed = hooks_path.exists()
-    config_before = config_path.read_bytes() if config_existed else b""
-    hooks_before = hooks_path.read_bytes() if hooks_existed else b""
+    config_existed = config_before is not None
+    hooks_existed = hooks_before is not None
+    config_original = config_before if config_before is not None else b""
+    hooks_original = hooks_before if hooks_before is not None else b""
     config_mode = _target_mode(config_path)
     hooks_mode = _target_mode(hooks_path)
     config_changed = plan.config_action is not InstallationFileAction.UNCHANGED
     hooks_changed = plan.hooks_action is not InstallationFileAction.UNCHANGED
     role_block = _render_role_block(plan.roles_to_add) if config_changed else ""
-    config_separator = _toml_separator(config_before) if config_changed else b""
-    config_after = config_before + config_separator + role_block.encode("utf-8")
+    config_separator = _toml_separator(config_original) if config_changed else b""
+    config_after = config_original + config_separator + role_block.encode("utf-8")
     all_hook_groups = _managed_hook_groups(hook_command)
     expected_roles = {
         contract.agent_type: contract.description for contract in role_contracts()
@@ -306,7 +348,9 @@ def _install_user_config_locked(
         for event_name in plan.hook_events_to_add
     }
     hooks_after = (
-        _merge_hook_groups(hooks_before, hook_groups) if hooks_changed else hooks_before
+        _merge_hook_groups(hooks_original, hook_groups)
+        if hooks_changed
+        else hooks_original
     )
     manifest = {
         "schema_version": 1,
@@ -317,7 +361,7 @@ def _install_user_config_locked(
             "managed_block": role_block,
             "expected_roles": expected_roles,
             "separator": config_separator.decode(),
-            "original_bytes": _encoded_original(config_before, config_existed),
+            "original_bytes": _encoded_original(config_original, config_existed),
             "original_mode": (config_mode if config_existed else None),
             "installed_sha256": _sha256(config_after),
         },
@@ -326,36 +370,92 @@ def _install_user_config_locked(
             "changed": hooks_changed,
             "managed_groups": hook_groups,
             "expected_groups": all_hook_groups,
-            "original_bytes": _encoded_original(hooks_before, hooks_existed),
+            "original_bytes": _encoded_original(hooks_original, hooks_existed),
             "original_mode": hooks_mode if hooks_existed else None,
             "installed_sha256": _sha256(hooks_after),
         },
     }
     journal = {**manifest, "state": "installing"}
 
+    config_written = False
+    hooks_written = False
     try:
         _atomic_write(transaction_path, _json_document(journal), 0o600)
         if config_changed:
-            _atomic_write(config_path, config_after, config_mode)
+            _guarded_replace(config_path, config_before, config_after, config_mode)
+            config_written = True
         if hooks_changed:
-            _atomic_write(hooks_path, hooks_after, hooks_mode)
-        _atomic_write(
+            _guarded_replace(hooks_path, hooks_before, hooks_after, hooks_mode)
+            hooks_written = True
+        _atomic_write(manifest_path, _json_document(manifest), 0o600)
+    except (OSError, InstallationViolation) as error:
+        preserved = _abort_failed_installation(
+            (
+                (
+                    config_path,
+                    config_before,
+                    config_mode,
+                    config_after if config_written else None,
+                ),
+                (
+                    hooks_path,
+                    hooks_before,
+                    hooks_mode,
+                    hooks_after if hooks_written else None,
+                ),
+            ),
             manifest_path,
-            _json_document(manifest),
-            0o600,
+            transaction_path,
         )
+        detail = f"installation transaction failed: {error}"
+        if preserved:
+            detail = (
+                detail
+                + "; "
+                + "; ".join(preserved)
+                + "; the transaction journal was preserved for recovery"
+            )
+        raise InstallationViolation(detail) from error
+    try:
         transaction_path.unlink()
     except OSError as error:
-        _restore_file(config_path, config_existed, config_before, config_mode)
-        _restore_file(hooks_path, hooks_existed, hooks_before, hooks_mode)
+        raise InstallationViolation(
+            "installation succeeded but its transaction journal could not be "
+            f"removed: {error}"
+        ) from error
+    return result
+
+
+def _abort_failed_installation(
+    written_files: tuple[tuple[Path, bytes | None, int, bytes | None], ...],
+    manifest_path: Path,
+    transaction_path: Path,
+) -> tuple[str, ...]:
+    """Undo a failed transaction without overwriting concurrent modifications.
+
+    Returns the files that had to be left in place; the transaction journal
+    is kept for recovery exactly when that tuple is not empty.
+    """
+    details: list[str] = []
+    for path, original, original_mode, written in written_files:
+        if written is None:
+            continue
+        try:
+            detail = _undo_written_file(path, original, original_mode, written)
+        except OSError as error:
+            detail = f"{path.name} could not be restored: {error}"
+        if detail is not None:
+            details.append(detail)
+    if details:
+        return tuple(details)
+    try:
         if manifest_path.is_file():
             manifest_path.unlink()
         if transaction_path.is_file():
             transaction_path.unlink()
-        raise InstallationViolation(
-            f"installation transaction failed: {error}"
-        ) from error
-    return result
+    except OSError as error:
+        return (f"installation state could not be cleaned up: {error}",)
+    return ()
 
 
 def installation_status(codex_home: Path) -> InstallationStatus:

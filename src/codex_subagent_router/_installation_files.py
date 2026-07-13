@@ -435,19 +435,6 @@ def sha256(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
 
 
-def restore_original(path: Path, manifest: dict[str, object]) -> None:
-    encoded = cast(str, manifest["original_bytes"])
-    mode = cast(int, manifest["original_mode"])
-    atomic_write(path, base64.b64decode(encoded), mode)
-
-
-def restore_file(path: Path, existed: bool, content: bytes, mode: int) -> None:
-    if existed:
-        atomic_write(path, content, mode)
-    elif path.exists():
-        path.unlink()
-
-
 def target_mode(path: Path) -> int:
     if path.exists():
         return stat.S_IMODE(path.stat().st_mode)
@@ -455,6 +442,56 @@ def target_mode(path: Path) -> int:
 
 
 def atomic_write(path: Path, content: bytes, mode: int) -> None:
+    temporary_path = _prepared_replacement(path, content, mode)
+    try:
+        temporary_path.replace(path)
+    finally:
+        temporary_path.unlink(missing_ok=True)
+
+
+def guarded_replace(
+    path: Path,
+    expected: bytes | None,
+    content: bytes,
+    mode: int,
+) -> None:
+    """Replace path atomically only while it still matches the planned snapshot.
+
+    expected is the exact byte snapshot the change was planned against, or
+    None when the file must still be absent. POSIX rename cannot exclude
+    non-cooperating writers, so the target is re-verified immediately before
+    the replacement; a concurrent change fails closed instead of being
+    overwritten.
+    """
+    temporary_path = _prepared_replacement(path, content, mode)
+    try:
+        require_unmodified(path, expected)
+        temporary_path.replace(path)
+    finally:
+        temporary_path.unlink(missing_ok=True)
+
+
+def guarded_remove(path: Path, expected: bytes) -> None:
+    """Remove path only while it still matches the planned snapshot."""
+    require_unmodified(path, expected)
+    path.unlink(missing_ok=True)
+
+
+def require_unmodified(path: Path, expected: bytes | None) -> None:
+    violation = file_target_violation(path)
+    if violation is not None:
+        raise InstallationViolation(violation)
+    if expected is None:
+        if path.exists():
+            raise InstallationViolation(f"{path.name} was created concurrently")
+        return
+    if not path.exists():
+        raise InstallationViolation(f"{path.name} was removed concurrently")
+    if path.read_bytes() != expected:
+        raise InstallationViolation(f"{path.name} was modified concurrently")
+
+
+def _prepared_replacement(path: Path, content: bytes, mode: int) -> Path:
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     descriptor, temporary_name = tempfile.mkstemp(
         dir=path.parent,
@@ -467,6 +504,7 @@ def atomic_write(path: Path, content: bytes, mode: int) -> None:
             stream.flush()
             os.fchmod(stream.fileno(), mode)
             os.fsync(stream.fileno())
-        temporary_path.replace(path)
-    finally:
+    except OSError:
         temporary_path.unlink(missing_ok=True)
+        raise
+    return temporary_path
