@@ -2,24 +2,33 @@
 
 import tomllib
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 
 from .roles import role_contracts
 
 
+class AgentLayer(StrEnum):
+    """Configuration layer whose standalone agents are being inspected."""
+
+    USER = "user"
+    PROJECT = "project"
+
+
 @dataclass(frozen=True, slots=True)
 class StandaloneAgentInspection:
-    """Read-only findings for the active user-level standalone agent tree."""
+    """Read-only findings for one active standalone-agent tree."""
 
-    files_to_preserve: tuple[str, ...]
+    agent_files: tuple[str, ...]
     issues: tuple[str, ...]
 
 
 def _standalone_agent_files(
     codex_home: Path,
     agents_directory: Path,
-    message_prefix: str,
+    layer: AgentLayer,
 ) -> tuple[tuple[Path, ...], tuple[str, ...]]:
+    message_prefix = "project " if layer is AgentLayer.PROJECT else ""
     pending_directories = [agents_directory]
     standalone_files: list[Path] = []
     issues: list[str] = []
@@ -55,22 +64,23 @@ def _standalone_agent_files(
 def _inspect_agent_directory(
     root: Path,
     agents_directory: Path,
-    message_prefix: str,
+    layer: AgentLayer,
 ) -> StandaloneAgentInspection:
+    message_prefix = "project " if layer is AgentLayer.PROJECT else ""
     relative_directory = agents_directory.relative_to(root).as_posix()
     if agents_directory.is_symlink():
         return StandaloneAgentInspection(
-            files_to_preserve=(),
+            agent_files=(),
             issues=(
                 f"{message_prefix}standalone agent directory "
                 f"{relative_directory!r} must not be a symbolic link",
             ),
         )
     if not agents_directory.exists():
-        return StandaloneAgentInspection(files_to_preserve=(), issues=())
+        return StandaloneAgentInspection(agent_files=(), issues=())
     if not agents_directory.is_dir():
         return StandaloneAgentInspection(
-            files_to_preserve=(),
+            agent_files=(),
             issues=(
                 f"{message_prefix}standalone agent directory "
                 f"{relative_directory!r} must be a directory",
@@ -81,11 +91,9 @@ def _inspect_agent_directory(
     standalone_files, directory_issues = _standalone_agent_files(
         root,
         agents_directory,
-        message_prefix,
+        layer,
     )
-    files_to_preserve = tuple(
-        path.relative_to(root).as_posix() for path in standalone_files
-    )
+    agent_files = tuple(path.relative_to(root).as_posix() for path in standalone_files)
     issues = list(directory_issues)
     for path in standalone_files:
         relative_path = path.relative_to(root).as_posix()
@@ -122,9 +130,24 @@ def _inspect_agent_directory(
                 "'name' must be a non-empty string"
             )
             continue
+        invalid_required_field = next(
+            (
+                field_name
+                for field_name in ("description", "developer_instructions")
+                if not isinstance(document.get(field_name), str)
+                or not document[field_name].strip()
+            ),
+            None,
+        )
+        if invalid_required_field is not None:
+            issues.append(
+                f"{message_prefix}standalone agent file {relative_path!r} field "
+                f"{invalid_required_field!r} must be a non-empty string"
+            )
+            continue
         normalized_name = name.strip()
         if normalized_name in managed_roles:
-            if message_prefix:
+            if layer is AgentLayer.PROJECT:
                 issues.append(
                     f"{message_prefix}standalone agent file {relative_path!r} "
                     f"declares managed role {normalized_name!r} and shadows the "
@@ -139,41 +162,45 @@ def _inspect_agent_directory(
                     "the installer will leave the file unchanged"
                 )
     return StandaloneAgentInspection(
-        files_to_preserve=files_to_preserve,
+        agent_files=agent_files,
         issues=tuple(issues),
     )
 
 
 def inspect_standalone_agents(codex_home: Path) -> StandaloneAgentInspection:
     """Inspect active standalone agents without taking ownership of them."""
-    return _inspect_agent_directory(codex_home, codex_home / "agents", "")
+    return _inspect_agent_directory(
+        codex_home,
+        codex_home / "agents",
+        AgentLayer.USER,
+    )
 
 
 def inspect_project_agents(project_directory: Path) -> StandaloneAgentInspection:
     """Inspect one project's active standalone agents without writing it."""
     if not project_directory.exists():
         return StandaloneAgentInspection(
-            files_to_preserve=(),
+            agent_files=(),
             issues=("project directory does not exist",),
         )
     if not project_directory.is_dir():
         return StandaloneAgentInspection(
-            files_to_preserve=(),
+            agent_files=(),
             issues=("project directory must be a directory",),
         )
     codex_directory = project_directory / ".codex"
     if codex_directory.is_symlink():
         return StandaloneAgentInspection(
-            files_to_preserve=(),
+            agent_files=(),
             issues=("project Codex directory '.codex' must not be a symbolic link",),
         )
     if codex_directory.exists() and not codex_directory.is_dir():
         return StandaloneAgentInspection(
-            files_to_preserve=(),
+            agent_files=(),
             issues=("project Codex directory '.codex' must be a directory",),
         )
     return _inspect_agent_directory(
         project_directory,
         codex_directory / "agents",
-        "project ",
+        AgentLayer.PROJECT,
     )

@@ -30,6 +30,6 @@ def build_doctor_report(
         installation_state=status.state,
         healthy=status.state is InstallationState.INSTALLED and not issues,
         issues=tuple(issues),
-        user_standalone_agent_files=user_agents.files_to_preserve,
-        project_standalone_agent_files=project_agents.files_to_preserve,
+        user_standalone_agent_files=user_agents.agent_files,
+        project_standalone_agent_files=project_agents.agent_files,
     )

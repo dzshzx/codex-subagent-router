@@ -35,7 +35,7 @@ def test_plan_reports_standalone_agent_conflict_by_declared_name(
 
     actual = plan_user_installation(
         tmp_path,
-        (str(tmp_path / "bin" / "codex-subagent-router-hook"),),
+        (str(_hook_executable(tmp_path)),),
     )
 
     assert actual.conflicts == (
@@ -198,6 +198,47 @@ def test_plan_reports_standalone_agent_without_a_valid_name(tmp_path: Path) -> N
     assert actual.standalone_agent_files_to_preserve == ("agents/unnamed.toml",)
     assert actual.config_action is InstallationFileAction.UNCHANGED
     assert actual.hooks_action is InstallationFileAction.UNCHANGED
+
+
+def test_plan_reports_standalone_agent_without_developer_instructions(
+    tmp_path: Path,
+) -> None:
+    standalone_agent = tmp_path / "agents" / "missing-instructions.toml"
+    standalone_agent.parent.mkdir()
+    standalone_agent.write_text(
+        'name = "user_owned"\ndescription = "Missing its required instructions"\n'
+    )
+
+    actual = plan_user_installation(
+        tmp_path,
+        (str(_hook_executable(tmp_path)),),
+    )
+
+    assert actual.conflicts == (
+        "standalone agent file 'agents/missing-instructions.toml' field "
+        "'developer_instructions' must be a non-empty string",
+    )
+    assert actual.standalone_agent_files_to_preserve == (
+        "agents/missing-instructions.toml",
+    )
+
+
+def test_plan_reports_standalone_agent_without_a_description(tmp_path: Path) -> None:
+    standalone_agent = tmp_path / "agents" / "missing-description.toml"
+    standalone_agent.parent.mkdir()
+    standalone_agent.write_text(
+        'name = "user_owned"\ndeveloper_instructions = "Remain user owned."\n'
+    )
+
+    actual = plan_user_installation(
+        tmp_path,
+        (str(_hook_executable(tmp_path)),),
+    )
+
+    assert actual.conflicts == (
+        "standalone agent file 'agents/missing-description.toml' field "
+        "'description' must be a non-empty string",
+    )
 
 
 def test_unmanaged_standalone_agent_does_not_conflict_or_get_modified(

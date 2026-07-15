@@ -130,3 +130,28 @@ def test_doctor_reports_a_missing_hook_launcher(tmp_path: Path) -> None:
     assert actual.issues == (
         f"hook launcher is not an executable file: {hook_executable}",
     )
+
+
+def test_doctor_reports_project_agent_without_developer_instructions(
+    tmp_path: Path,
+) -> None:
+    codex_home = tmp_path / "codex-home"
+    project_directory = tmp_path / "project"
+    codex_home.mkdir()
+    project_agent = project_directory / ".codex" / "agents" / "invalid.toml"
+    project_agent.parent.mkdir(parents=True)
+    project_agent.write_text(
+        'name = "project_owned"\ndescription = "Missing its required instructions"\n'
+    )
+    install_user_config(codex_home, (str(_hook_executable(tmp_path)),))
+
+    actual = doctor_user_config(codex_home, project_directory)
+
+    assert actual.healthy is False
+    assert actual.issues == (
+        "project standalone agent file '.codex/agents/invalid.toml' field "
+        "'developer_instructions' must be a non-empty string",
+    )
+    assert project_agent.read_text() == (
+        'name = "project_owned"\ndescription = "Missing its required instructions"\n'
+    )

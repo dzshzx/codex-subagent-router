@@ -144,7 +144,7 @@ def plan_user_installation(
 ) -> InstallationPlan:
     """Plan installation into one explicit Codex home without writing files."""
     standalone_inspection = _inspect_standalone_agents(codex_home)
-    standalone_files = standalone_inspection.files_to_preserve
+    standalone_files = standalone_inspection.agent_files
 
     def blocked_plan(
         conflict: str,

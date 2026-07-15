@@ -1,7 +1,7 @@
 # Complete the user-level installation lifecycle
 
 Category: feature
-Status: resolved
+Status: ready-for-human
 
 ## Answer
 

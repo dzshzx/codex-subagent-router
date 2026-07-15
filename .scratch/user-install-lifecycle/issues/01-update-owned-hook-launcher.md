@@ -1,7 +1,7 @@
 # Update a user-level installation's owned Hook launcher
 
 Category: feature
-Status: resolved
+Status: ready-for-human
 
 ## Answer
 
