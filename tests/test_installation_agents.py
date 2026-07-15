@@ -225,3 +225,24 @@ def test_unmanaged_standalone_agent_does_not_conflict_or_get_modified(
     assert not installed.config_path.exists()
     assert not installed.hooks_path.exists()
     assert not installed.manifest_path.parent.exists()
+
+
+def test_blocked_plan_still_reports_standalone_files_to_preserve(
+    tmp_path: Path,
+) -> None:
+    standalone_agent = tmp_path / "agents" / "user-owned.toml"
+    standalone_agent.parent.mkdir()
+    standalone_agent.write_text(
+        'name = "user_owned"\n'
+        'description = "Unmanaged agent"\n'
+        'developer_instructions = "Remain user owned."\n'
+    )
+    (tmp_path / "codex-subagent-router" / "operation.lock").mkdir(parents=True)
+
+    actual = plan_user_installation(
+        tmp_path,
+        (str(tmp_path / "bin" / "codex-subagent-router-hook"),),
+    )
+
+    assert actual.conflicts == ("another installation operation is in progress",)
+    assert actual.standalone_agent_files_to_preserve == ("agents/user-owned.toml",)
