@@ -81,6 +81,17 @@ or modified. A later change to user-owned V2 values makes status unhealthy and
 blocks reinstall, but rollback may still remove the intact router-owned block
 while preserving those user values.
 
+Treat active standalone agent files below the explicit user Codex home's
+`agents` tree as inspected but non-owned configuration. Planning reports their
+relative paths as files to preserve. Invalid or unsafe files and declarations
+whose `name` claims a router-managed role fail closed; other names coexist
+without being modified. Do not automatically rename, disable, adopt, snapshot,
+or record standalone files in the receipt. Public status reports a conflicting
+standalone file that appears after installation, while rollback deliberately
+ignores that live conflict and continues to operate only on `config.toml`,
+`hooks.json`, and private transaction state. Project-level agent trees remain
+outside the user installer's observable scope.
+
 Do not write Codex hook trust hashes and do not configure the dangerous trust
 bypass. Report that hook review and a fresh session are required.
 
@@ -91,8 +102,9 @@ bypass. Report that hook review and a fresh session are required.
 - Reinstallation is idempotent for the same launcher and refuses to replace the
   original rollback snapshot when requested configuration differs.
 - Invalid TOML, invalid JSON, incompatible role names, conflicting managed
-  matchers, unsafe paths, unhealthy receipts, and concurrent operations fail
-  closed before configuration changes.
+  matchers, conflicting or indeterminate standalone agents, unsafe paths,
+  unhealthy receipts, and concurrent operations fail closed before
+  configuration changes.
 - Newly created configuration and state files use mode `0600`; existing file
   modes are preserved across installation, failure recovery, and rollback.
 - A crash can leave a visible journal or lock that requires recovery or operator

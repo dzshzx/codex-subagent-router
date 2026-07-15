@@ -42,6 +42,7 @@ class InstallationPlan:
     conflicts: tuple[str, ...]
     requires_hook_review: bool
     requires_new_session: bool
+    standalone_agent_files_to_preserve: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

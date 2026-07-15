@@ -125,6 +125,9 @@ def _plan_document(plan: InstallationPlan) -> dict[str, object]:
         "roles_to_add": list(plan.roles_to_add),
         "hook_events_to_add": list(plan.hook_events_to_add),
         "conflicts": list(plan.conflicts),
+        "standalone_agent_files_to_preserve": list(
+            plan.standalone_agent_files_to_preserve
+        ),
         "requires_hook_review": plan.requires_hook_review,
         "requires_new_session": plan.requires_new_session,
     }

@@ -90,7 +90,9 @@ def test_status_reports_modified_when_a_standalone_agent_claims_a_managed_role(
         state=InstallationState.MODIFIED,
         details=(
             "standalone agent file 'agents/custom-review.toml' declares managed "
-            "role 'reviewer'",
+            "role 'reviewer'; change its declared name or move it out of the "
+            "active agents directory before installation; the installer will "
+            "leave the file unchanged",
         ),
     )
 

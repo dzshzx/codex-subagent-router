@@ -55,6 +55,13 @@ def test_cli_rejects_a_relative_hook_executable(tmp_path: Path) -> None:
 
 def test_cli_plan_is_read_only_and_machine_readable(tmp_path: Path) -> None:
     hook_executable = _hook_executable(tmp_path)
+    standalone_agent = tmp_path / "agents" / "user-owned.toml"
+    standalone_agent.parent.mkdir()
+    standalone_agent.write_text(
+        'name = "user_owned"\n'
+        'description = "Unmanaged agent"\n'
+        'developer_instructions = "Remain user owned."\n'
+    )
 
     actual = _run_cli(
         "plan",
@@ -81,6 +88,7 @@ def test_cli_plan_is_read_only_and_machine_readable(tmp_path: Path) -> None:
             "SubagentStart",
         ],
         "conflicts": [],
+        "standalone_agent_files_to_preserve": ["agents/user-owned.toml"],
         "requires_hook_review": True,
         "requires_new_session": True,
     }

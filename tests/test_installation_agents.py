@@ -4,6 +4,7 @@ from codex_subagent_router import (
     InstallationFileAction,
     install_user_config,
     plan_user_installation,
+    rollback_user_config,
 )
 
 
@@ -34,8 +35,11 @@ def test_plan_reports_standalone_agent_conflict_by_declared_name(
 
     assert actual.conflicts == (
         "standalone agent file 'agents/custom-review.toml' declares managed "
-        "role 'reviewer'",
+        "role 'reviewer'; change its declared name or move it out of the active "
+        "agents directory before installation; the installer will leave the "
+        "file unchanged",
     )
+    assert actual.standalone_agent_files_to_preserve == ("agents/custom-review.toml",)
     assert actual.config_action is InstallationFileAction.UNCHANGED
     assert actual.hooks_action is InstallationFileAction.UNCHANGED
     assert actual.roles_to_add == ()
@@ -63,7 +67,9 @@ def test_plan_normalizes_a_standalone_agent_declared_name(tmp_path: Path) -> Non
 
     assert actual.conflicts == (
         "standalone agent file 'agents/custom-review.toml' declares managed "
-        "role 'reviewer'",
+        "role 'reviewer'; change its declared name or move it out of the active "
+        "agents directory before installation; the installer will leave the "
+        "file unchanged",
     )
 
 
@@ -83,7 +89,9 @@ def test_plan_reports_nested_standalone_agent_conflict(tmp_path: Path) -> None:
 
     assert actual.conflicts == (
         "standalone agent file 'agents/team/custom-review.toml' declares managed "
-        "role 'reviewer'",
+        "role 'reviewer'; change its declared name or move it out of the active "
+        "agents directory before installation; the installer will leave the "
+        "file unchanged",
     )
 
 
@@ -132,8 +140,13 @@ def test_plan_reports_each_standalone_managed_role_conflict(
     )
 
     assert actual.conflicts == (
-        "standalone agent file 'agents/a.toml' declares managed role 'reviewer'",
-        "standalone agent file 'agents/z.toml' declares managed role 'researcher'",
+        "standalone agent file 'agents/a.toml' declares managed role 'reviewer'; "
+        "change its declared name or move it out of the active agents directory "
+        "before installation; the installer will leave the file unchanged",
+        "standalone agent file 'agents/z.toml' declares managed role "
+        "'researcher'; change its declared name or move it out of the active "
+        "agents directory before installation; the installer will leave the "
+        "file unchanged",
     )
     assert actual.config_action is InstallationFileAction.UNCHANGED
     assert actual.hooks_action is InstallationFileAction.UNCHANGED
@@ -153,6 +166,7 @@ def test_plan_reports_invalid_standalone_agent_toml(tmp_path: Path) -> None:
     assert actual.conflicts == (
         "standalone agent file 'agents/broken.toml' is not valid TOML",
     )
+    assert actual.standalone_agent_files_to_preserve == ("agents/broken.toml",)
     assert actual.config_action is InstallationFileAction.UNCHANGED
     assert actual.hooks_action is InstallationFileAction.UNCHANGED
     assert standalone_agent.read_bytes() == b'name = "reviewer"\ndescription = [\n'
@@ -176,6 +190,7 @@ def test_plan_reports_standalone_agent_without_a_valid_name(tmp_path: Path) -> N
         "standalone agent file 'agents/unnamed.toml' field 'name' must be a "
         "non-empty string",
     )
+    assert actual.standalone_agent_files_to_preserve == ("agents/unnamed.toml",)
     assert actual.config_action is InstallationFileAction.UNCHANGED
     assert actual.hooks_action is InstallationFileAction.UNCHANGED
 
@@ -198,6 +213,15 @@ def test_unmanaged_standalone_agent_does_not_conflict_or_get_modified(
     installed = install_user_config(tmp_path, (str(hook_executable),))
 
     assert plan.conflicts == ()
+    assert plan.standalone_agent_files_to_preserve == ("agents/user-owned.toml",)
     assert installed.manifest_path.exists()
     assert standalone_agent.read_bytes() == standalone_document
     assert standalone_agent.stat().st_mode & 0o7777 == 0o640
+
+    rollback_user_config(tmp_path)
+
+    assert standalone_agent.read_bytes() == standalone_document
+    assert standalone_agent.stat().st_mode & 0o7777 == 0o640
+    assert not installed.config_path.exists()
+    assert not installed.hooks_path.exists()
+    assert not installed.manifest_path.parent.exists()

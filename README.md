@@ -254,6 +254,29 @@ It cannot predict permission, storage, or concurrent filesystem failures that
 occur after the plan was produced; `install` repeats the checks while holding
 the operation lock and fails closed if snapshots have changed.
 
+The plan also recursively inspects active `*.toml` files under the explicit
+`$CODEX_HOME/agents` tree. Every discovered path appears in
+`standalone_agent_files_to_preserve`; these files remain user-owned and are
+never added to the installation receipt. A file whose declared `name` is not
+one of the four router-managed roles is left byte-for-byte and mode-for-mode
+unchanged. Invalid or unsafe files fail closed because the installer cannot
+prove that they are compatible.
+
+A standalone file declaring `researcher`, `reviewer`,
+`architecture_explorer`, or `interface_designer` conflicts with the
+Hook-managed definition and blocks both `plan` and `install`. The installer
+does not automatically rename, disable, adopt, or back up that file. Change its
+declared `name`, or move it out of the active `agents` tree, then rerun `plan`.
+Changing only the filename does not resolve the conflict because Codex role
+identity comes from the TOML `name` field. If this is a temporary manual
+change, reverse it manually after rollback when you want the standalone role
+active again.
+
+This preflight covers the explicit user Codex home only. A user-level installer
+cannot enumerate every project's `.codex/agents` tree; a project-level
+standalone file with a managed name remains unsupported and must be removed or
+renamed by that project's operator.
+
 If `codex-subagent-router-hook` cannot be resolved on `PATH`, `plan` and
 `install` accept `--hook-executable PATH`. The value must be an absolute path to
 a regular executable file in a persistent environment.
@@ -348,6 +371,11 @@ bytes and modes or removes files the installer created. If unrelated content
 was added later, rollback removes only still-intact owned blocks and hook groups.
 It refuses to proceed when owned content has been modified, when the receipt is
 unhealthy, or while another installation operation holds the lock.
+
+Rollback never modifies `$CODEX_HOME/agents`. Standalone files that predate the
+installation, or that are added later, keep their current paths, bytes, and
+modes. Because manual renames or disables are not installer-owned, rollback
+does not reverse them.
 
 Uninstall in this order: run `rollback` first, then remove the package. The
 rollback CLI and the hook launcher live in the package environment, so

@@ -1,9 +1,18 @@
 """Standalone custom-agent checks for user installation."""
 
 import tomllib
+from dataclasses import dataclass
 from pathlib import Path
 
 from .roles import role_contracts
+
+
+@dataclass(frozen=True, slots=True)
+class StandaloneAgentInspection:
+    """Read-only findings for the active user-level standalone agent tree."""
+
+    files_to_preserve: tuple[str, ...]
+    issues: tuple[str, ...]
 
 
 def _standalone_agent_files(
@@ -41,20 +50,29 @@ def _standalone_agent_files(
     return tuple(standalone_files), tuple(issues)
 
 
-def standalone_agent_issues(codex_home: Path) -> tuple[str, ...]:
-    """Report standalone agents that claim router-managed role names."""
+def inspect_standalone_agents(codex_home: Path) -> StandaloneAgentInspection:
+    """Inspect active standalone agents without taking ownership of them."""
     agents_directory = codex_home / "agents"
     if agents_directory.is_symlink():
-        return ("standalone agent directory 'agents' must not be a symbolic link",)
+        return StandaloneAgentInspection(
+            files_to_preserve=(),
+            issues=("standalone agent directory 'agents' must not be a symbolic link",),
+        )
     if not agents_directory.exists():
-        return ()
+        return StandaloneAgentInspection(files_to_preserve=(), issues=())
     if not agents_directory.is_dir():
-        return ("standalone agent directory 'agents' must be a directory",)
+        return StandaloneAgentInspection(
+            files_to_preserve=(),
+            issues=("standalone agent directory 'agents' must be a directory",),
+        )
 
     managed_roles = {contract.agent_type for contract in role_contracts()}
     standalone_files, directory_issues = _standalone_agent_files(
         codex_home,
         agents_directory,
+    )
+    files_to_preserve = tuple(
+        path.relative_to(codex_home).as_posix() for path in standalone_files
     )
     issues = list(directory_issues)
     for path in standalone_files:
@@ -88,6 +106,11 @@ def standalone_agent_issues(codex_home: Path) -> tuple[str, ...]:
         if normalized_name in managed_roles:
             issues.append(
                 f"standalone agent file {relative_path!r} declares managed role "
-                f"{normalized_name!r}"
+                f"{normalized_name!r}; change its declared name or move it out "
+                "of the active agents directory before installation; the "
+                "installer will leave the file unchanged"
             )
-    return tuple(issues)
+    return StandaloneAgentInspection(
+        files_to_preserve=files_to_preserve,
+        issues=tuple(issues),
+    )
