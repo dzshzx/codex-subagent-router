@@ -412,6 +412,11 @@ def _plan_user_update_without_lock(
     manifest_path = installation_directory / _MANIFEST_NAME
     if not manifest_path.is_file():
         return _blocked_update_plan(codex_home, "installation is not installed")
+    if _target_mode(manifest_path) != 0o600:
+        return _blocked_update_plan(
+            codex_home,
+            "installation manifest mode is modified",
+        )
     status = _installation_status_without_lock(codex_home)
     if status.state is not InstallationState.INSTALLED:
         detail = "; ".join(status.details) if status.details else status.state.value

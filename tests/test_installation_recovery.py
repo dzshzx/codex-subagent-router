@@ -179,6 +179,56 @@ def test_update_recovery_restores_the_previous_healthy_installation(
     assert not transaction_path.exists()
 
 
+def test_update_recovery_rejects_current_mode_modifications(tmp_path: Path) -> None:
+    old_hook_executable = _hook_executable(tmp_path)
+    installed = install_user_config(tmp_path, (str(old_hook_executable),))
+    hooks_before = installed.hooks_path.read_bytes()
+    manifest_before = installed.manifest_path.read_bytes()
+    hooks_mode = installed.hooks_path.stat().st_mode & 0o7777
+    manifest_mode = installed.manifest_path.stat().st_mode & 0o7777
+    new_hook_executable = tmp_path / "new-bin" / "codex-subagent-router-hook"
+    new_hook_executable.parent.mkdir()
+    new_hook_executable.write_text("#!/bin/sh\n")
+    new_hook_executable.chmod(0o755)
+    update_user_config(tmp_path, (str(new_hook_executable),))
+    hooks_after = installed.hooks_path.read_bytes()
+    manifest_after = installed.manifest_path.read_bytes()
+    transaction_path = installed.manifest_path.with_name("transaction.json")
+    transaction_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "state": "updating",
+                "update": {
+                    "hooks": {
+                        "before_bytes": base64.b64encode(hooks_before).decode(),
+                        "before_mode": hooks_mode,
+                        "after_sha256": hashlib.sha256(hooks_after).hexdigest(),
+                    },
+                    "manifest": {
+                        "before_bytes": base64.b64encode(manifest_before).decode(),
+                        "before_mode": manifest_mode,
+                        "after_sha256": hashlib.sha256(manifest_after).hexdigest(),
+                    },
+                },
+            }
+        )
+        + "\n"
+    )
+    installed.hooks_path.chmod(0o640)
+
+    with pytest.raises(
+        InstallationViolation,
+        match="installation update transaction has user modifications: hooks.json",
+    ):
+        rollback_user_config(tmp_path)
+
+    assert installed.hooks_path.read_bytes() == hooks_after
+    assert installed.hooks_path.stat().st_mode & 0o7777 == 0o640
+    assert installed.manifest_path.read_bytes() == manifest_after
+    assert transaction_path.exists()
+
+
 def test_update_recovery_rejects_an_invalid_journal(tmp_path: Path) -> None:
     installed = install_user_config(tmp_path, (str(_hook_executable(tmp_path)),))
     before = (
@@ -198,4 +248,128 @@ def test_update_recovery_rejects_an_invalid_journal(tmp_path: Path) -> None:
     assert installed.config_path.read_bytes() == before[0]
     assert installed.hooks_path.read_bytes() == before[1]
     assert installed.manifest_path.read_bytes() == before[2]
+    assert transaction_path.exists()
+
+
+def test_update_recovery_rejects_an_invalid_previous_receipt(tmp_path: Path) -> None:
+    installed = install_user_config(tmp_path, (str(_hook_executable(tmp_path)),))
+    before = (
+        installed.config_path.read_bytes(),
+        installed.hooks_path.read_bytes(),
+        installed.manifest_path.read_bytes(),
+    )
+    transaction_path = installed.manifest_path.with_name("transaction.json")
+    transaction_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "state": "updating",
+                "update": {
+                    "hooks": {
+                        "before_bytes": base64.b64encode(b"arbitrary hooks\n").decode(),
+                        "before_mode": 0o600,
+                        "after_sha256": hashlib.sha256(before[1]).hexdigest(),
+                    },
+                    "manifest": {
+                        "before_bytes": base64.b64encode(
+                            b"arbitrary receipt\n"
+                        ).decode(),
+                        "before_mode": 0o600,
+                        "after_sha256": hashlib.sha256(before[2]).hexdigest(),
+                    },
+                },
+            }
+        )
+        + "\n"
+    )
+
+    with pytest.raises(
+        InstallationViolation,
+        match="installation update transaction journal is invalid",
+    ):
+        rollback_user_config(tmp_path)
+
+    assert installed.config_path.read_bytes() == before[0]
+    assert installed.hooks_path.read_bytes() == before[1]
+    assert installed.manifest_path.read_bytes() == before[2]
+    assert transaction_path.exists()
+
+
+def test_update_recovery_rejects_hooks_that_do_not_match_previous_receipt(
+    tmp_path: Path,
+) -> None:
+    installed = install_user_config(tmp_path, (str(_hook_executable(tmp_path)),))
+    hooks_before = installed.hooks_path.read_bytes()
+    manifest_before = installed.manifest_path.read_bytes()
+    transaction_path = installed.manifest_path.with_name("transaction.json")
+    transaction_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "state": "updating",
+                "update": {
+                    "hooks": {
+                        "before_bytes": base64.b64encode(b'{"hooks": {}}\n').decode(),
+                        "before_mode": 0o600,
+                        "after_sha256": hashlib.sha256(hooks_before).hexdigest(),
+                    },
+                    "manifest": {
+                        "before_bytes": base64.b64encode(manifest_before).decode(),
+                        "before_mode": 0o600,
+                        "after_sha256": hashlib.sha256(manifest_before).hexdigest(),
+                    },
+                },
+            }
+        )
+        + "\n"
+    )
+
+    with pytest.raises(
+        InstallationViolation,
+        match="installation update transaction journal is invalid",
+    ):
+        rollback_user_config(tmp_path)
+
+    assert installed.hooks_path.read_bytes() == hooks_before
+    assert installed.manifest_path.read_bytes() == manifest_before
+    assert transaction_path.exists()
+
+
+def test_update_recovery_rejects_previous_modes_that_do_not_match_receipt(
+    tmp_path: Path,
+) -> None:
+    installed = install_user_config(tmp_path, (str(_hook_executable(tmp_path)),))
+    hooks_before = installed.hooks_path.read_bytes()
+    manifest_before = installed.manifest_path.read_bytes()
+    transaction_path = installed.manifest_path.with_name("transaction.json")
+    transaction_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "state": "updating",
+                "update": {
+                    "hooks": {
+                        "before_bytes": base64.b64encode(hooks_before).decode(),
+                        "before_mode": 0o644,
+                        "after_sha256": hashlib.sha256(hooks_before).hexdigest(),
+                    },
+                    "manifest": {
+                        "before_bytes": base64.b64encode(manifest_before).decode(),
+                        "before_mode": 0o600,
+                        "after_sha256": hashlib.sha256(manifest_before).hexdigest(),
+                    },
+                },
+            }
+        )
+        + "\n"
+    )
+
+    with pytest.raises(
+        InstallationViolation,
+        match="installation update transaction journal is invalid",
+    ):
+        rollback_user_config(tmp_path)
+
+    assert installed.hooks_path.read_bytes() == hooks_before
+    assert installed.manifest_path.read_bytes() == manifest_before
     assert transaction_path.exists()

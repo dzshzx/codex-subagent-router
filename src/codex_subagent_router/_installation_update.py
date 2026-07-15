@@ -13,11 +13,12 @@ from ._installation_files import (
     guarded_replace,
     installation_manifest_is_valid,
     installation_modifications,
+    installation_snapshot_is_healthy,
+    installed_hooks_sha256,
     is_valid_mode,
     is_valid_sha256,
     json_document,
     managed_hook_groups,
-    merge_hook_groups,
     sha256,
     target_mode,
     validate_hook_command,
@@ -163,11 +164,9 @@ def apply_hook_launcher_update(
     )
     hooks_manifest["managed_groups"] = desired_groups
     hooks_manifest["expected_groups"] = desired_groups
-    hooks_manifest["installed_sha256"] = sha256(
-        merge_hook_groups(
-            _snapshot_original_content(hooks_manifest),
-            desired_groups,
-        )
+    hooks_manifest["installed_sha256"] = installed_hooks_sha256(
+        hooks_manifest,
+        desired_groups,
     )
     manifest_after = json_document(manifest)
     hooks_transition = FileTransition(
@@ -212,6 +211,16 @@ def recover_update_transaction(
 ) -> RollbackResult:
     hooks_path = codex_home / "hooks.json"
     hooks_target, manifest_target = parse_update_recovery_targets(journal)
+    if not installation_snapshot_is_healthy(
+        codex_home,
+        manifest_target.before,
+        manifest_target.before_mode,
+        hooks_target.before,
+        hooks_target.before_mode,
+    ):
+        raise InstallationViolation(
+            "installation update transaction journal is invalid"
+        )
     hooks_action = update_recovery_action(hooks_path, hooks_target)
     update_recovery_action(manifest_path, manifest_target)
     apply_update_recovery_target(manifest_path, manifest_target)
@@ -312,7 +321,10 @@ def _validated_current(path: Path, target: UpdateRecoveryTarget) -> bytes:
             f"installation update transaction has a missing user file: {path.name}"
         )
     current = path.read_bytes()
-    if current != target.before and sha256(current) != target.after_sha256:
+    content_is_expected = (
+        current == target.before or sha256(current) == target.after_sha256
+    )
+    if target_mode(path) != target.before_mode or not content_is_expected:
         raise InstallationViolation(
             f"installation update transaction has user modifications: {path.name}"
         )
@@ -379,13 +391,6 @@ def _hook_groups_differ_only_in_commands(
         current_without_launcher is not None
         and current_without_launcher == without_launcher(desired)
     )
-
-
-def _snapshot_original_content(snapshot: dict[str, object]) -> bytes:
-    encoded = snapshot["original_bytes"]
-    if encoded is None:
-        return b""
-    return base64.b64decode(cast(str, encoded), validate=True)
 
 
 def _target_document(transition: FileTransition) -> dict[str, object]:

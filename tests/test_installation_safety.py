@@ -419,6 +419,33 @@ def test_update_refuses_an_invalid_existing_manifest(tmp_path: Path) -> None:
     assert installed.manifest_path.read_bytes() == before[2]
 
 
+def test_update_refuses_a_modified_manifest_mode(tmp_path: Path) -> None:
+    old_hook_executable = _hook_executable(tmp_path)
+    installed = install_user_config(tmp_path, (str(old_hook_executable),))
+    installed.manifest_path.chmod(0o640)
+    before = (
+        installed.config_path.read_bytes(),
+        installed.hooks_path.read_bytes(),
+        installed.manifest_path.read_bytes(),
+    )
+    new_hook_executable = tmp_path / "bin" / "replacement-hook"
+    new_hook_executable.write_text("#!/bin/sh\n")
+    new_hook_executable.chmod(0o755)
+
+    plan = plan_user_update(tmp_path, (str(new_hook_executable),))
+
+    assert plan.conflicts == ("installation manifest mode is modified",)
+    with pytest.raises(
+        InstallationViolation,
+        match="installation manifest mode is modified",
+    ):
+        update_user_config(tmp_path, (str(new_hook_executable),))
+    assert installed.config_path.read_bytes() == before[0]
+    assert installed.hooks_path.read_bytes() == before[1]
+    assert installed.manifest_path.read_bytes() == before[2]
+    assert installed.manifest_path.stat().st_mode & 0o7777 == 0o640
+
+
 def test_update_refuses_a_symlinked_hooks_file(tmp_path: Path) -> None:
     old_hook_executable = _hook_executable(tmp_path)
     installed = install_user_config(tmp_path, (str(old_hook_executable),))

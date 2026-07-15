@@ -257,6 +257,19 @@ def _hooks_snapshot_is_consistent(snapshot: dict[str, object]) -> bool:
     )
 
 
+def installed_hooks_sha256(
+    snapshot: dict[str, object],
+    managed_groups: dict[str, list[object]],
+) -> str:
+    """Hash the receipt baseline with a replacement set of owned Hook groups."""
+    return sha256(
+        merge_hook_groups(
+            _original_snapshot_content(snapshot),
+            managed_groups,
+        )
+    )
+
+
 def _original_snapshot_content(snapshot: dict[str, object]) -> bytes:
     encoded = snapshot["original_bytes"]
     if encoded is None:
@@ -323,6 +336,67 @@ def installation_modifications(
     codex_home: Path,
     manifest: dict[str, object],
 ) -> list[str]:
+    details = _config_modifications(codex_home, manifest)
+    hooks_path = codex_home / "hooks.json"
+    hooks_manifest = cast(dict[str, object], manifest["hooks"])
+    hooks_violation = file_target_violation(hooks_path)
+    if hooks_violation is not None:
+        details.append(hooks_violation)
+        return details
+    if not hooks_path.exists():
+        details.append("managed hook groups are missing or modified")
+        return details
+    details.extend(
+        _hooks_content_modifications(
+            hooks_path.read_bytes(),
+            target_mode(hooks_path),
+            hooks_manifest,
+        )
+    )
+    return details
+
+
+def installation_snapshot_is_healthy(
+    codex_home: Path,
+    manifest_content: bytes,
+    manifest_mode: int,
+    hooks_content: bytes,
+    hooks_mode: int,
+) -> bool:
+    """Validate the complete pre-update installation represented by a journal."""
+    try:
+        manifest_document = json.loads(manifest_content)
+        if not isinstance(manifest_document, dict):
+            return False
+        manifest = cast(dict[str, object], manifest_document)
+        if manifest_mode != 0o600 or not installation_manifest_is_valid(
+            manifest,
+            "installed",
+        ):
+            return False
+        if _config_modifications(codex_home, manifest):
+            return False
+        hooks_manifest = cast(dict[str, object], manifest["hooks"])
+        return not _hooks_content_modifications(
+            hooks_content,
+            hooks_mode,
+            hooks_manifest,
+        )
+    except (
+        json.JSONDecodeError,
+        UnicodeDecodeError,
+        OSError,
+        KeyError,
+        TypeError,
+        ValueError,
+    ):
+        return False
+
+
+def _config_modifications(
+    codex_home: Path,
+    manifest: dict[str, object],
+) -> list[str]:
     details: list[str] = []
     config_path = codex_home / "config.toml"
     config_manifest = cast(dict[str, object], manifest["config"])
@@ -358,21 +432,20 @@ def installation_modifications(
             )
             if not multi_agent_v2_is_present or multi_agent_v2_issue is not None:
                 details.append(MULTI_AGENT_V2_MODIFICATION_DETAIL)
+    return details
 
-    hooks_path = codex_home / "hooks.json"
-    hooks_manifest = cast(dict[str, object], manifest["hooks"])
+
+def _hooks_content_modifications(
+    hooks_content: bytes,
+    hooks_mode: int,
+    hooks_manifest: dict[str, object],
+) -> list[str]:
+    details: list[str] = []
     expected_groups = cast(dict[str, list[object]], hooks_manifest["expected_groups"])
-    hooks_violation = file_target_violation(hooks_path)
-    if hooks_violation is not None:
-        details.append(hooks_violation)
-        return details
-    if not hooks_path.exists():
-        details.append("managed hook groups are missing or modified")
-        return details
-    if target_mode(hooks_path) != expected_installed_mode(hooks_manifest):
+    if hooks_mode != expected_installed_mode(hooks_manifest):
         details.append("hooks.json mode is modified")
     try:
-        hooks_document = json.loads(hooks_path.read_text(encoding="utf-8"))
+        hooks_document = json.loads(hooks_content)
     except (json.JSONDecodeError, UnicodeDecodeError):
         details.append("hooks.json is not valid JSON")
         return details
