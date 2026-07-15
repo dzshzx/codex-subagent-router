@@ -110,6 +110,35 @@ def test_plan_refuses_a_symlinked_standalone_agent_directory(
     assert list(external.iterdir()) == []
 
 
+def test_plan_refuses_a_nested_symlinked_standalone_agent_directory(
+    tmp_path: Path,
+) -> None:
+    external = tmp_path / "external-agents"
+    external.mkdir()
+    (external / "reviewer.toml").write_text(
+        'name = "reviewer"\n'
+        'description = "External reviewer"\n'
+        'developer_instructions = "Stay outside the installer."\n'
+    )
+    agents_directory = tmp_path / "agents"
+    agents_directory.mkdir()
+    nested_agents_directory = agents_directory / "team"
+    nested_agents_directory.symlink_to(external, target_is_directory=True)
+
+    actual = plan_user_installation(
+        tmp_path,
+        (str(tmp_path / "bin" / "codex-subagent-router-hook"),),
+    )
+
+    assert actual.conflicts == (
+        "standalone agent directory 'agents/team' must not be a symbolic link",
+    )
+    assert actual.config_action is InstallationFileAction.UNCHANGED
+    assert actual.hooks_action is InstallationFileAction.UNCHANGED
+    assert nested_agents_directory.is_symlink()
+    assert (external / "reviewer.toml").read_text().startswith('name = "reviewer"')
+
+
 def test_plan_refuses_a_non_directory_standalone_agent_path(
     tmp_path: Path,
 ) -> None:

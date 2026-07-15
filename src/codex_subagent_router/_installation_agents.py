@@ -28,7 +28,13 @@ def _standalone_agent_files(
         for path in entries:
             if path.suffix == ".toml":
                 standalone_files.append(path)
-            elif not path.is_symlink() and path.is_dir():
+            elif path.is_symlink() and path.is_dir():
+                relative_path = path.relative_to(codex_home).as_posix()
+                issues.append(
+                    f"standalone agent directory {relative_path!r} must not be "
+                    "a symbolic link"
+                )
+            elif path.is_dir():
                 pending_directories.append(path)
 
     standalone_files.sort(key=lambda path: path.relative_to(codex_home).as_posix())
