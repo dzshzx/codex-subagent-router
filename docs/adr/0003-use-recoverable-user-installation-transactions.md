@@ -32,8 +32,11 @@ home. The package exposes separate `codex-subagent-router` and
 absolute launcher path.
 
 Derive role declarations from `roles.py` and event names, matchers, handlers,
-and command names from `hook_specs.py`. The installer does not duplicate the
-routing table or role descriptions as a second executable source.
+and command names from `hook_specs.py`. The installer also enables the
+MultiAgent V2 configuration accepted in ADR-0005. Its required settings have
+one private executable source shared by planning, rendering, and status. The
+installer does not duplicate the routing table or role descriptions as a
+second executable source.
 
 Before changing files, write a private transaction journal containing original
 bytes, modes, installed hashes, owned entries, and the complete compatible
@@ -42,6 +45,12 @@ own directory, then atomically write the installed receipt and remove the
 journal. A directory lock serializes install and rollback operations. Reject
 symbolic links and non-file configuration targets instead of replacing links or
 following state paths.
+
+Schema 2 receipts record both the expected V2 values and whether the installer
+owns that table. Schema 1 receipts from installations that predate the V2
+default remain valid for status and rollback, so an upgrade can require a clean
+rollback instead of trapping the old installation in a non-rollbackable
+`modified` state.
 
 The transaction is recoverable rather than falsely described as cross-file
 atomic. If an installation reports a filesystem error in-process, restore both
@@ -61,12 +70,15 @@ action under a `rolling-back` state. A retry accepts only a pre-rollback or
 already-applied target hash, reapplies both targets idempotently, and removes the
 receipt and journal only after both files reach their targets.
 
-Record ownership narrowly. Compatible roles or hook groups that predate the
-receipt are expected and monitored but not removed by rollback. Entries added
-by the installer are removed only while still intact. When an installed file is
-otherwise unchanged, restore its exact original bytes and mode. When unrelated
-content was added later, remove the owned TOML block and exact JSON groups
-surgically. Refuse rollback if owned configuration is missing or modified.
+Record ownership narrowly. Compatible V2 settings, roles, or hook groups that
+predate the receipt are expected and monitored but not removed by rollback.
+Entries added by the installer are removed only while still intact. When an
+installed file is otherwise unchanged, restore its exact original bytes and
+mode. When unrelated content was added later, remove the owned TOML block and
+exact JSON groups surgically. Refuse rollback if owned configuration is missing
+or modified. A later change to user-owned V2 values makes status unhealthy and
+blocks reinstall, but rollback may still remove the intact router-owned block
+while preserving those user values.
 
 Do not write Codex hook trust hashes and do not configure the dangerous trust
 bypass. Report that hook review and a fresh session are required.

@@ -7,14 +7,15 @@
 `codex-subagent-router` is an independent Python project for developing and
 validating model, effort, role, and context-routing policy for Codex subagents.
 
-The repository currently provides the stable policy seam; strict JSON value
+The repository currently provides the policy seam; strict JSON value
 types for the `PreToolUse`, `SessionStart`, and `SubagentStart` hook boundaries;
 and deny-only validation for routed `spawn_agent` calls. Root-session routing
 guidance, managed subagent role-context handlers, and executable JSON command
 adapters are also available. Explicit user-level installation, status, safe
 rollback, and their command-line entry points are implemented. The complete
-generated configuration path has a recorded isolated Codex CLI verification;
-see [Codex compatibility](#codex-compatibility) for its exact scope.
+installation lifecycle and the explicit V2 configuration each have recorded
+isolated Codex CLI evidence; see [Codex compatibility](#codex-compatibility)
+for the exact scope and the remaining real-backend boundary.
 
 ## Technology
 
@@ -39,9 +40,14 @@ minimum version, or a claim about unlisted releases.
 
 | Codex CLI | Verified surfaces | Evidence |
 |---|---|---|
-| `0.144.1` | Strict hook protocol, command adapters, generated user installation, and fresh-session role/Hook discovery | [`docs/research/codex-0.144.1-hook-evidence.md`](https://github.com/dzshzx/codex-subagent-router/blob/HEAD/docs/research/codex-0.144.1-hook-evidence.md) |
-| `0.144.3` | Root guidance, deny-before-creation, managed role context, fail-open behavior, generated installation, status, rollback, and both spawn shapes of the capability seam against the shipped stable toolset | [`docs/research/codex-0.144.3-hook-evidence.md`](https://github.com/dzshzx/codex-subagent-router/blob/HEAD/docs/research/codex-0.144.3-hook-evidence.md) |
-| `0.144.4` | Hook-managed stable path: root guidance, deny-before-creation, managed role context, trust and fail-open behavior, generated installation, status, rollback, and custom-agent exclusion | [`docs/research/codex-0.144.4-hook-evidence.md`](https://github.com/dzshzx/codex-subagent-router/blob/HEAD/docs/research/codex-0.144.4-hook-evidence.md) |
+| `0.144.1` | Historical pre-V2-default package probe: strict hook protocol, generated user installation, and fresh-session role/Hook discovery | [`docs/research/codex-0.144.1-hook-evidence.md`](https://github.com/dzshzx/codex-subagent-router/blob/HEAD/docs/research/codex-0.144.1-hook-evidence.md) |
+| `0.144.3` | Historical pre-V2-default package probe: root guidance, deny-before-creation, role context, generated installation lifecycle, and both spawn shapes against the shipped stable toolset | [`docs/research/codex-0.144.3-hook-evidence.md`](https://github.com/dzshzx/codex-subagent-router/blob/HEAD/docs/research/codex-0.144.3-hook-evidence.md) |
+| `0.144.4` | Hook-managed lifecycle plus the explicitly configured V2 loopback contract, including visible routing metadata and the `agents` namespace; real-backend V2 remains unverified | [`docs/research/codex-0.144.4-hook-evidence.md`](https://github.com/dzshzx/codex-subagent-router/blob/HEAD/docs/research/codex-0.144.4-hook-evidence.md) |
+
+The `0.144.1` and `0.144.3` rows preserve historical evidence for the V1
+compatibility seam; they do not verify the current V2-default generated
+configuration. A current deployment should use the `0.144.4` V2 settings below
+and retain its stated provider boundary.
 
 Router-managed roles use one definition mode: description-only inline role
 declarations plus the generated Hooks. Standalone custom-agent files are an
@@ -65,15 +71,16 @@ default stable spawn handler enforces the V2-shaped input contract. Release
 decisions therefore rest on installed-binary probes, never on tag source
 reading alone.
 
-Codex ships two multi-agent tool generations: stable `multi_agent`
-(MultiAgent V1) is enabled by default, while `multi_agent_v2` is a separately
-enabled, under-development preview. Hook-visible V2 names can be canonical or
-namespace-flattened, so the validator accepts the released variants through
-one capability seam. Normal supported use stays on default V1 and does not
-require the preview. On installed `0.144.4`, default V2 hides the explicit
-routing fields and therefore fails closed; the loopback probe routed only with
-`hide_spawn_agent_metadata = false` and `tool_namespace = "agents"`. That V2
-probe is recorded as preview evidence, not as real-backend compatibility.
+Codex ships two multi-agent tool generations. In `0.144.4`, the session uses
+the selected model's `multi_agent_version` metadata before falling back to the
+feature default. The bundled catalog assigns V2 to `gpt-5.6-sol` and
+`gpt-5.6-terra`, the only model families in this router's policy, so generated
+installations explicitly enable V2. They also set
+`hide_spawn_agent_metadata = false` so the Hook can validate role/model/effort,
+and `tool_namespace = "agents"` to keep the spawn tool on the verified matcher
+seam. The validator retains V1 input-shape support for compatibility, but V1 is
+not the generated installation priority. See
+[ADR-0005](docs/adr/0005-enable-multiagent-v2-for-gpt-5-6.md).
 
 Unlisted Codex versions are unverified. The protocol boundary is deliberately
 strict, while Codex command-hook failures are fail-open; an upstream schema or
@@ -157,11 +164,11 @@ event and permission values, non-JSON numeric constants, and numeric overflow.
 or subagent-context output shapes, whose string fields are validated when their
 value objects are constructed.
 
-`validate_pre_tool_use` ignores non-spawn tool calls. Stable MultiAgent V1 and
-MultiAgent V2 register the same hook tool name, so for verified spawn tool
+`validate_pre_tool_use` ignores non-spawn tool calls. MultiAgent V1 and V2 use
+the same validator capability seam, so for verified spawn tool
 names the validator selects the contract from the input shape: a `task_name`
 or `fork_turns` field selects the V2 contract, and any other object is
-validated as a stable V1 spawn. Both variants must route explicitly with
+validated as a V1 spawn. Both variants must route explicitly with
 `agent_type`, `model`, and `reasoning_effort` validated against the policy
 seam. V2 spawns additionally require `message`, `task_name`, and
 `fork_turns="none"` or a positive integer string; V1 spawns require exactly
@@ -204,9 +211,9 @@ codex login status
 The compatibility table records completed probes, not a runtime version pin.
 If the installed Codex version is not listed, complete the compatibility gate
 in [CONTRIBUTING.md](CONTRIBUTING.md#codex-compatibility-verification) before
-describing the deployment as verified. Normal use relies on the stable
-`multi_agent` feature and does not require enabling the `multi_agent_v2`
-preview.
+describing the deployment as verified. The installer enables MultiAgent V2 for
+the GPT-5.6 Sol/Terra policy used here; do not remove or override those settings
+without re-verifying the Hook-visible spawn contract.
 
 ### Persistent package installation
 
@@ -273,14 +280,24 @@ stderr. Failures raised before planning, and installation or rollback
 violations, exit `1` with text on stderr; callers must not assume that every
 nonzero result contains JSON.
 
-The installer adds description-only declarations for the four managed roles to
-`config.toml`, adds the three command-hook groups to `hooks.json`, and writes a
-private receipt under `codex-subagent-router/installation.json`. Existing bytes
-and file modes are captured before a change. Each replacement is atomic, and a
-persisted journal makes an interrupted two-file transaction recoverable.
-Configuration files and state paths that are symbolic links are rejected.
-Compatible entries that already exist are verified but are not claimed as
-installer-owned.
+The installer adds this V2 table and description-only declarations for the four
+managed roles to `config.toml`, adds the three command-hook groups to
+`hooks.json`, and writes a private receipt under
+`codex-subagent-router/installation.json`:
+
+```toml
+[features.multi_agent_v2]
+enabled = true
+hide_spawn_agent_metadata = false
+tool_namespace = "agents"
+```
+
+Existing bytes and file modes are captured before a change. Each replacement
+is atomic, and a persisted journal makes an interrupted two-file transaction
+recoverable. Configuration files and state paths that are symbolic links are
+rejected. Compatible entries that already exist are verified but are not
+claimed as installer-owned; partial or conflicting V2 settings and the
+V2-incompatible `agents.max_threads` setting fail closed.
 
 ### Review Hook trust and start a fresh session
 

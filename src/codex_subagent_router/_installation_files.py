@@ -14,6 +14,12 @@ from pathlib import Path
 from typing import cast
 
 from ._installation_types import InstallationViolation
+from ._installation_v2 import (
+    MULTI_AGENT_V2_MODIFICATION_DETAIL,
+    inspect_multi_agent_v2_configuration,
+    multi_agent_v2_settings,
+    multi_agent_v2_settings_are_exact,
+)
 from .hook_specs import hook_command_specs
 from .roles import role_contracts
 
@@ -95,7 +101,8 @@ def installation_manifest_is_valid(
     expected_state: str,
 ) -> bool:
     try:
-        if manifest.get("schema_version") != 1:
+        schema_version = manifest.get("schema_version")
+        if type(schema_version) is not int or schema_version not in (1, 2):
             return False
         if manifest.get("state") != expected_state:
             return False
@@ -123,6 +130,15 @@ def installation_manifest_is_valid(
             return False
         if not expected_roles:
             return False
+        if schema_version == 2:
+            expected_multi_agent_v2 = config["expected_multi_agent_v2"]
+            if not multi_agent_v2_settings_are_exact(expected_multi_agent_v2):
+                return False
+            managed_multi_agent_v2 = config["managed_multi_agent_v2"]
+            if type(managed_multi_agent_v2) is not bool:
+                return False
+            if managed_multi_agent_v2 != ("[features.multi_agent_v2]" in managed_block):
+                return False
         if not _config_snapshot_is_consistent(config):
             return False
         managed_groups = hooks["managed_groups"]
@@ -194,12 +210,20 @@ def _config_snapshot_is_consistent(snapshot: dict[str, object]) -> bool:
         return False
     agents = document.get("agents", {})
     expected_roles = cast(dict[str, str], snapshot["expected_roles"])
-    return isinstance(agents, dict) and all(
+    roles_are_consistent = isinstance(agents, dict) and all(
         isinstance(agents.get(role_name), dict)
         and agents[role_name].get("description") == description
         and "config_file" not in agents[role_name]
         for role_name, description in expected_roles.items()
     )
+    if not roles_are_consistent:
+        return False
+    if "expected_multi_agent_v2" not in snapshot:
+        return True
+    multi_agent_v2_is_present, multi_agent_v2_issue = (
+        inspect_multi_agent_v2_configuration(document)
+    )
+    return multi_agent_v2_is_present and multi_agent_v2_issue is None
 
 
 def _hooks_snapshot_is_consistent(snapshot: dict[str, object]) -> bool:
@@ -322,6 +346,12 @@ def installation_modifications(
                 roles_are_compatible
             ):
                 details.append("managed role block is missing or modified")
+            if manifest.get("schema_version") == 2:
+                multi_agent_v2_is_present, multi_agent_v2_issue = (
+                    inspect_multi_agent_v2_configuration(config_document)
+                )
+                if not multi_agent_v2_is_present or multi_agent_v2_issue is not None:
+                    details.append(MULTI_AGENT_V2_MODIFICATION_DETAIL)
 
     hooks_path = codex_home / "hooks.json"
     hooks_manifest = cast(dict[str, object], manifest["hooks"])
@@ -393,11 +423,22 @@ def validate_hook_command(hook_command: tuple[str, ...]) -> None:
         )
 
 
-def render_role_block(role_names: tuple[str, ...]) -> str:
+def render_managed_config_block(
+    role_names: tuple[str, ...],
+    *,
+    include_multi_agent_v2: bool,
+) -> str:
     contracts = {
         contract.agent_type: contract.description for contract in role_contracts()
     }
-    lines = ["# BEGIN codex-subagent-router managed roles"]
+    lines = ["# BEGIN codex-subagent-router managed configuration"]
+    if include_multi_agent_v2:
+        lines.append("[features.multi_agent_v2]")
+        lines.extend(
+            f"{name} = {json.dumps(value, ensure_ascii=False)}"
+            for name, value in multi_agent_v2_settings().items()
+        )
+        lines.append("")
     for role_name in role_names:
         lines.extend(
             (
@@ -406,7 +447,7 @@ def render_role_block(role_names: tuple[str, ...]) -> str:
                 "",
             )
         )
-    lines.append("# END codex-subagent-router managed roles")
+    lines.append("# END codex-subagent-router managed configuration")
     return "\n".join(lines) + "\n"
 
 

@@ -48,7 +48,7 @@ from ._installation_files import (
     operation_lock_path as _operation_lock_path,
 )
 from ._installation_files import (
-    render_role_block as _render_role_block,
+    render_managed_config_block as _render_managed_config_block,
 )
 from ._installation_files import (
     sha256 as _sha256,
@@ -104,6 +104,13 @@ from ._installation_types import (
 )
 from ._installation_types import RollbackFileAction as RollbackFileAction
 from ._installation_types import RollbackResult as RollbackResult
+from ._installation_v2 import (
+    MULTI_AGENT_V2_MODIFICATION_DETAIL as _MULTI_AGENT_V2_MODIFICATION_DETAIL,
+)
+from ._installation_v2 import (
+    inspect_multi_agent_v2_configuration as _inspect_multi_agent_v2_configuration,
+)
+from ._installation_v2 import multi_agent_v2_settings as _multi_agent_v2_settings
 from .roles import role_contracts
 
 _INSTALLATION_DIRECTORY = "codex-subagent-router"
@@ -199,6 +206,7 @@ def _plan_from_snapshots(
     hooks_snapshot: bytes | None,
 ) -> InstallationPlan:
     """Derive the plan from the exact snapshots a transaction commits against."""
+    config: dict[str, object] = {}
     existing_roles: dict[str, object] = {}
     if config_snapshot is not None:
         try:
@@ -213,6 +221,11 @@ def _plan_from_snapshots(
             )
         if isinstance(agents, dict):
             existing_roles = cast(dict[str, object], agents)
+    multi_agent_v2_is_present, multi_agent_v2_issue = (
+        _inspect_multi_agent_v2_configuration(config)
+    )
+    if multi_agent_v2_issue is not None:
+        return _blocked_plan(codex_home, multi_agent_v2_issue)
     roles_to_add: list[str] = []
     conflicts: list[str] = []
     for contract in role_contracts():
@@ -230,6 +243,21 @@ def _plan_from_snapshots(
             f"managed role {contract.agent_type!r} already exists with "
             "incompatible configuration"
         )
+    config_needs_update = bool(roles_to_add or not multi_agent_v2_is_present)
+    if config_needs_update:
+        original = config_snapshot if config_snapshot is not None else b""
+        managed_block = _render_managed_config_block(
+            tuple(roles_to_add),
+            include_multi_agent_v2=not multi_agent_v2_is_present,
+        )
+        candidate = original + _toml_separator(original) + managed_block.encode()
+        try:
+            tomllib.loads(candidate.decode("utf-8"))
+        except (tomllib.TOMLDecodeError, UnicodeDecodeError):
+            return _blocked_plan(
+                codex_home,
+                "config.toml cannot be safely extended with managed configuration",
+            )
     managed_hook_groups = _managed_hook_groups(hook_command)
     hook_events_to_add = list(managed_hook_groups)
     if hooks_snapshot is not None:
@@ -278,7 +306,7 @@ def _plan_from_snapshots(
                 if config_snapshot is not None
                 else InstallationFileAction.CREATE
             )
-            if roles_to_add
+            if config_needs_update
             else InstallationFileAction.UNCHANGED
         ),
         hooks_action=(
@@ -400,9 +428,21 @@ def _install_user_config_locked(
     hooks_mode = _target_mode(hooks_path)
     config_changed = plan.config_action is not InstallationFileAction.UNCHANGED
     hooks_changed = plan.hooks_action is not InstallationFileAction.UNCHANGED
-    role_block = _render_role_block(plan.roles_to_add) if config_changed else ""
+    multi_agent_v2_is_present, _ = _inspect_multi_agent_v2_configuration(
+        tomllib.loads(config_original.decode("utf-8")) if config_original else {}
+    )
+    managed_config_block = (
+        _render_managed_config_block(
+            plan.roles_to_add,
+            include_multi_agent_v2=not multi_agent_v2_is_present,
+        )
+        if config_changed
+        else ""
+    )
     config_separator = _toml_separator(config_original) if config_changed else b""
-    config_after = config_original + config_separator + role_block.encode("utf-8")
+    config_after = (
+        config_original + config_separator + managed_config_block.encode("utf-8")
+    )
     all_hook_groups = _managed_hook_groups(hook_command)
     expected_roles = {
         contract.agent_type: contract.description for contract in role_contracts()
@@ -417,12 +457,14 @@ def _install_user_config_locked(
         else hooks_original
     )
     manifest = {
-        "schema_version": 1,
+        "schema_version": 2,
         "state": "installed",
         "config": {
             "created": not config_existed,
             "changed": config_changed,
-            "managed_block": role_block,
+            "managed_block": managed_config_block,
+            "expected_multi_agent_v2": _multi_agent_v2_settings(),
+            "managed_multi_agent_v2": not multi_agent_v2_is_present,
             "expected_roles": expected_roles,
             "separator": config_separator.decode(),
             "original_bytes": _encoded_original(config_original, config_existed),
@@ -579,7 +621,8 @@ def _installation_status_without_lock(codex_home: Path) -> InstallationStatus:
         manifest_document = json.loads(manifest_path.read_text(encoding="utf-8"))
         if (
             not isinstance(manifest_document, dict)
-            or manifest_document.get("schema_version") != 1
+            or type(manifest_document.get("schema_version")) is not int
+            or manifest_document.get("schema_version") not in (1, 2)
         ):
             raise TypeError("unsupported installation manifest schema")
         manifest = cast(dict[str, object], manifest_document)
@@ -675,16 +718,30 @@ def _rollback_user_config_locked(codex_home: Path) -> RollbackResult:
         )
 
     status = _installation_status_without_lock(codex_home)
-    if status.state is not InstallationState.INSTALLED:
+    if status.state not in (InstallationState.INSTALLED, InstallationState.MODIFIED):
         detail = "; ".join(status.details) if status.details else status.state.value
         raise InstallationViolation(f"installation cannot be rolled back: {detail}")
     manifest = cast(
         dict[str, object],
         json.loads(manifest_path.read_text(encoding="utf-8")),
     )
+    config_manifest = cast(dict[str, object], manifest["config"])
+    user_owned_v2_is_the_only_modification = (
+        status.state is InstallationState.MODIFIED
+        and manifest.get("schema_version") == 2
+        and config_manifest.get("managed_multi_agent_v2") is False
+        and _installation_modifications(codex_home, manifest)
+        == [_MULTI_AGENT_V2_MODIFICATION_DETAIL]
+    )
+    if (
+        status.state is not InstallationState.INSTALLED
+        and not user_owned_v2_is_the_only_modification
+    ):
+        detail = "; ".join(status.details) if status.details else status.state.value
+        raise InstallationViolation(f"installation cannot be rolled back: {detail}")
     config_target = _plan_config_rollback(
         codex_home / "config.toml",
-        cast(dict[str, object], manifest["config"]),
+        config_manifest,
     )
     hooks_target = _plan_hooks_rollback(
         codex_home / "hooks.json",

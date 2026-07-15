@@ -1,3 +1,4 @@
+import hashlib
 import json
 import stat
 import tomllib
@@ -98,6 +99,39 @@ description = "Read-only reviewer for one bounded diff axis."
     assert hooks_path.read_text() == hooks_document
 
 
+def test_install_adds_v2_when_all_managed_roles_already_exist(
+    tmp_path: Path,
+) -> None:
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        """[agents.researcher]
+description = "Primary-source researcher for external documentation, APIs, specifications, and upstream code."
+
+[agents.reviewer]
+description = "Read-only reviewer for one bounded diff axis."
+
+[agents.architecture_explorer]
+description = "Read-only architecture explorer for broad codebase scans and deepening opportunities."
+
+[agents.interface_designer]
+description = "Read-only module-interface designer for independent API and module-shape alternatives."
+"""
+    )
+    hook_command = (str(_hook_executable(tmp_path)),)
+
+    plan = plan_user_installation(tmp_path, hook_command)
+    install_user_config(tmp_path, hook_command)
+
+    assert plan.config_action is InstallationFileAction.UPDATE
+    assert plan.roles_to_add == ()
+    config = tomllib.loads(config_path.read_text())
+    assert config["features"]["multi_agent_v2"] == {
+        "enabled": True,
+        "hide_spawn_agent_metadata": False,
+        "tool_namespace": "agents",
+    }
+
+
 def test_plan_reports_an_incompatible_managed_role_without_overwriting_it(
     tmp_path: Path,
 ) -> None:
@@ -123,6 +157,129 @@ config_file = "./agents/reviewer.toml"
     )
 
 
+@pytest.mark.parametrize(
+    ("config_document", "expected_conflict"),
+    (
+        (
+            """[features.multi_agent_v2]
+enabled = false
+hide_spawn_agent_metadata = false
+tool_namespace = "agents"
+""",
+            "MultiAgent V2 already exists with incompatible configuration",
+        ),
+        (
+            """[features.multi_agent_v2]
+enabled = true
+""",
+            "MultiAgent V2 already exists with incompatible configuration",
+        ),
+        (
+            'features = "user value"\n',
+            "config.toml field 'features' must be a table",
+        ),
+    ),
+)
+def test_plan_rejects_incompatible_v2_configuration(
+    tmp_path: Path,
+    config_document: str,
+    expected_conflict: str,
+) -> None:
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(config_document)
+
+    actual = plan_user_installation(
+        tmp_path,
+        (str(tmp_path / "bin" / "codex-subagent-router-hook"),),
+    )
+
+    assert actual.conflicts == (expected_conflict,)
+    assert actual.config_action is InstallationFileAction.UNCHANGED
+    assert actual.hooks_action is InstallationFileAction.UNCHANGED
+    assert actual.roles_to_add == ()
+    assert actual.hook_events_to_add == ()
+    assert config_path.read_text() == config_document
+
+
+def test_plan_rejects_config_that_cannot_be_extended_with_v2(
+    tmp_path: Path,
+) -> None:
+    config_document = "features = { existing_flag = true }\n"
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(config_document)
+
+    actual = plan_user_installation(
+        tmp_path,
+        (str(tmp_path / "bin" / "codex-subagent-router-hook"),),
+    )
+
+    assert actual.conflicts == (
+        "config.toml cannot be safely extended with managed configuration",
+    )
+    assert actual.config_action is InstallationFileAction.UNCHANGED
+    assert actual.hooks_action is InstallationFileAction.UNCHANGED
+    assert actual.roles_to_add == ()
+    assert actual.hook_events_to_add == ()
+    assert config_path.read_text() == config_document
+
+
+def test_plan_rejects_agents_max_threads_when_enabling_v2(
+    tmp_path: Path,
+) -> None:
+    config_document = """[agents]
+max_threads = 8
+"""
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(config_document)
+
+    actual = plan_user_installation(
+        tmp_path,
+        (str(tmp_path / "bin" / "codex-subagent-router-hook"),),
+    )
+
+    assert actual.conflicts == (
+        "config.toml field 'agents.max_threads' is incompatible with MultiAgent V2",
+    )
+    assert actual.config_action is InstallationFileAction.UNCHANGED
+    assert actual.hooks_action is InstallationFileAction.UNCHANGED
+    assert actual.roles_to_add == ()
+    assert actual.hook_events_to_add == ()
+    assert config_path.read_text() == config_document
+
+
+def test_install_preserves_compatible_user_owned_v2_configuration(
+    tmp_path: Path,
+) -> None:
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        """[features.multi_agent_v2]
+enabled = true
+hide_spawn_agent_metadata = false
+tool_namespace = "agents"
+
+[agents.reviewer]
+description = "Read-only reviewer for one bounded diff axis."
+"""
+    )
+
+    install_user_config(tmp_path, (str(_hook_executable(tmp_path)),))
+
+    config_text = config_path.read_text()
+    assert config_text.count("[features.multi_agent_v2]") == 1
+    config = tomllib.loads(config_text)
+    assert config["features"]["multi_agent_v2"] == {
+        "enabled": True,
+        "hide_spawn_agent_metadata": False,
+        "tool_namespace": "agents",
+    }
+    assert set(config["agents"]) == {
+        "researcher",
+        "reviewer",
+        "architecture_explorer",
+        "interface_designer",
+    }
+
+
 def test_install_into_empty_codex_home_writes_private_managed_configuration(
     tmp_path: Path,
 ) -> None:
@@ -142,6 +299,11 @@ def test_install_into_empty_codex_home_writes_private_managed_configuration(
         requires_new_session=True,
     )
     config = tomllib.loads((tmp_path / "config.toml").read_text())
+    assert config["features"]["multi_agent_v2"] == {
+        "enabled": True,
+        "hide_spawn_agent_metadata": False,
+        "tool_namespace": "agents",
+    }
     assert config["agents"] == {
         "researcher": {
             "description": (
@@ -235,6 +397,41 @@ def test_plan_after_installation_is_unchanged(
     )
 
 
+def test_schema_one_installation_without_v2_remains_rollbackable(
+    tmp_path: Path,
+) -> None:
+    hook_command = (str(_hook_executable(tmp_path)),)
+    installed = install_user_config(tmp_path, hook_command)
+    current_config = installed.config_path.read_text()
+    roles = current_config[current_config.index("[agents.researcher]") :]
+    old_config = (
+        "# BEGIN codex-subagent-router managed roles\n"
+        + roles.replace(
+            "# END codex-subagent-router managed configuration",
+            "# END codex-subagent-router managed roles",
+        )
+    ).encode()
+    manifest = json.loads(installed.manifest_path.read_text())
+    manifest["schema_version"] = 1
+    manifest["config"].pop("expected_multi_agent_v2", None)
+    manifest["config"]["managed_block"] = old_config.decode()
+    manifest["config"]["installed_sha256"] = hashlib.sha256(old_config).hexdigest()
+    installed.config_path.write_bytes(old_config)
+    installed.manifest_path.write_text(json.dumps(manifest) + "\n")
+
+    status = installation_status(tmp_path)
+    plan = plan_user_installation(tmp_path, hook_command)
+    rolled_back = rollback_user_config(tmp_path)
+
+    assert status.state is InstallationState.INSTALLED
+    assert plan.conflicts == (
+        "existing installation differs from the requested configuration; "
+        "roll it back before reinstalling",
+    )
+    assert rolled_back.config_action is RollbackFileAction.REMOVED
+    assert rolled_back.hooks_action is RollbackFileAction.REMOVED
+
+
 def test_reinstall_with_the_same_command_is_idempotent(
     tmp_path: Path,
 ) -> None:
@@ -275,6 +472,53 @@ def test_status_reports_a_complete_installation(
     )
 
 
+def test_status_rejects_wrong_typed_v2_settings_in_the_receipt(
+    tmp_path: Path,
+) -> None:
+    installed = install_user_config(tmp_path, (str(_hook_executable(tmp_path)),))
+    manifest = json.loads(installed.manifest_path.read_text())
+    manifest["config"]["expected_multi_agent_v2"]["enabled"] = 1
+    installed.manifest_path.write_text(json.dumps(manifest) + "\n")
+
+    actual = installation_status(tmp_path)
+
+    assert actual == InstallationStatus(
+        codex_home=tmp_path,
+        state=InstallationState.INCOMPLETE,
+        details=("installation manifest is invalid",),
+    )
+
+
+def test_status_reports_modified_user_owned_v2_configuration(
+    tmp_path: Path,
+) -> None:
+    config_path = tmp_path / "config.toml"
+    user_config = """[features.multi_agent_v2]
+enabled = true
+hide_spawn_agent_metadata = false
+tool_namespace = "agents"
+"""
+    config_path.write_text(user_config)
+    install_user_config(tmp_path, (str(_hook_executable(tmp_path)),))
+    modified_user_config = user_config.replace("enabled = true", "enabled = false")
+    config_path.write_text(
+        config_path.read_text().replace("enabled = true", "enabled = false")
+    )
+
+    actual = installation_status(tmp_path)
+
+    assert actual == InstallationStatus(
+        codex_home=tmp_path,
+        state=InstallationState.MODIFIED,
+        details=("managed MultiAgent V2 configuration is missing or modified",),
+    )
+
+    rolled_back = rollback_user_config(tmp_path)
+
+    assert rolled_back.config_action is RollbackFileAction.UPDATED
+    assert config_path.read_text() == modified_user_config
+
+
 def test_rollback_removes_files_that_did_not_exist_before_installation(
     tmp_path: Path,
 ) -> None:
@@ -300,6 +544,14 @@ def test_rollback_removes_files_that_did_not_exist_before_installation(
         state=InstallationState.NOT_INSTALLED,
         details=(),
     )
+
+
+def test_rollback_reports_that_the_router_is_not_installed(tmp_path: Path) -> None:
+    with pytest.raises(
+        InstallationViolation,
+        match="installation cannot be rolled back: not-installed",
+    ):
+        rollback_user_config(tmp_path)
 
 
 def test_rollback_restores_existing_files_byte_for_byte_and_preserves_modes(
@@ -336,6 +588,24 @@ def test_rollback_restores_existing_files_byte_for_byte_and_preserves_modes(
     assert hooks_path.read_bytes() == hooks_document
     assert stat.S_IMODE(config_path.stat().st_mode) == 0o1640
     assert stat.S_IMODE(hooks_path.stat().st_mode) == 0o2644
+
+
+def test_rollback_preserves_compatible_user_owned_v2_configuration(
+    tmp_path: Path,
+) -> None:
+    config_document = b"""[features.multi_agent_v2]
+enabled = true
+hide_spawn_agent_metadata = false
+tool_namespace = "agents"
+"""
+    config_path = tmp_path / "config.toml"
+    config_path.write_bytes(config_document)
+    install_user_config(tmp_path, (str(_hook_executable(tmp_path)),))
+
+    actual = rollback_user_config(tmp_path)
+
+    assert actual.config_action is RollbackFileAction.UPDATED
+    assert config_path.read_bytes() == config_document
 
 
 def test_install_rejects_a_non_file_state_target_before_changing_files(

@@ -2,6 +2,22 @@
 
 Date verified: 2026-07-15
 
+Decision update: this record preserves the original stable-path release gate.
+After verifying that session selection honors model `multi_agent_version`
+metadata before the feature fallback, generated installations changed to the
+explicit V2 configuration already exercised by this record's supplemental
+loopback arm. `codex debug models --bundled` on the installed 0.144.4 binary
+reported V2 for `gpt-5.6-sol` and `gpt-5.6-terra`, and V1 for
+`gpt-5.6-luna`. See
+[`ADR-0005`](../adr/0005-enable-multiagent-v2-for-gpt-5-6.md). The original
+probe observations and their real-backend boundary remain unchanged.
+
+The updated installer was also run against a fresh temporary `CODEX_HOME`.
+`codex features list` parsed the generated configuration and reported
+`multi_agent_v2` enabled; router `status` reported `installed`, and rollback
+removed the temporary configuration. This was a local config-parse/lifecycle
+check and made no provider request.
+
 ## Status and scope
 
 This record combines the **source contract** of the official
