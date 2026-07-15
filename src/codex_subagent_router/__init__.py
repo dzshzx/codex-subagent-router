@@ -6,6 +6,7 @@ from .document_handlers import (
     handle_subagent_start_document,
 )
 from .installation import (
+    InstallationDoctorReport,
     InstallationFileAction,
     InstallationPlan,
     InstallationResult,
@@ -15,6 +16,7 @@ from .installation import (
     InstallationViolation,
     RollbackFileAction,
     RollbackResult,
+    doctor_user_config,
     install_user_config,
     installation_status,
     plan_user_installation,
@@ -59,6 +61,7 @@ __all__ = (
     "SessionStartOutput",
     "SubagentStartInput",
     "SubagentStartOutput",
+    "InstallationDoctorReport",
     "InstallationFileAction",
     "InstallationPlan",
     "InstallationResult",
@@ -69,6 +72,7 @@ __all__ = (
     "RollbackFileAction",
     "RollbackResult",
     "conditional_routes",
+    "doctor_user_config",
     "encode_hook_output",
     "handle_pre_tool_use_document",
     "handle_session_start_document",

@@ -79,6 +79,19 @@ class InstallationStatus:
 
 
 @dataclass(frozen=True, slots=True)
+class InstallationDoctorReport:
+    """Read-only health report across user and project agent layers."""
+
+    codex_home: Path
+    project_directory: Path
+    installation_state: InstallationState
+    healthy: bool
+    issues: tuple[str, ...]
+    user_standalone_agent_files: tuple[str, ...]
+    project_standalone_agent_files: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class RollbackResult:
     """User configuration actions completed by a rollback."""
 

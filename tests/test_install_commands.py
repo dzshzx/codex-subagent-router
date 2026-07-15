@@ -137,6 +137,101 @@ def test_cli_install_status_and_rollback_use_the_transaction_api(
     assert not (tmp_path / "hooks.json").exists()
 
 
+def test_cli_uninstall_restores_user_configuration(tmp_path: Path) -> None:
+    config_path = tmp_path / "config.toml"
+    config_before = b'model = "user-owned"\n'
+    config_path.write_bytes(config_before)
+    config_path.chmod(0o640)
+    hooks_path = tmp_path / "hooks.json"
+    hooks_before = (
+        b'{"hooks":{"Notification":[{"matcher":"","hooks":'
+        b'[{"type":"command","command":"/user/hook","timeout":5}]}]}}\n'
+    )
+    hooks_path.write_bytes(hooks_before)
+    hooks_path.chmod(0o644)
+    hook_executable = _hook_executable(tmp_path)
+    common = ("--codex-home", str(tmp_path))
+    install = _run_cli(
+        "install",
+        *common,
+        "--hook-executable",
+        str(hook_executable),
+    )
+    assert install.returncode == 0
+
+    uninstall = _run_cli("uninstall", *common)
+
+    assert uninstall.returncode == 0
+    assert json.loads(uninstall.stdout) == {
+        "codex_home": str(tmp_path),
+        "config_action": "updated",
+        "hooks_action": "updated",
+    }
+    assert config_path.read_bytes() == config_before
+    assert config_path.stat().st_mode & 0o7777 == 0o640
+    assert hooks_path.read_bytes() == hooks_before
+    assert hooks_path.stat().st_mode & 0o7777 == 0o644
+    assert not (tmp_path / "codex-subagent-router").exists()
+
+
+def test_cli_doctor_reports_project_agent_shadowing_without_writing(
+    tmp_path: Path,
+) -> None:
+    codex_home = tmp_path / "codex-home"
+    project_directory = tmp_path / "project"
+    codex_home.mkdir()
+    project_agent = project_directory / ".codex" / "agents" / "reviewer.toml"
+    project_agent.parent.mkdir(parents=True)
+    project_agent.write_text(
+        'name = "reviewer"\n'
+        'description = "Project reviewer"\n'
+        'developer_instructions = "Override the user role."\n'
+    )
+    hook_executable = _hook_executable(tmp_path)
+    install = _run_cli(
+        "install",
+        "--codex-home",
+        str(codex_home),
+        "--hook-executable",
+        str(hook_executable),
+    )
+    assert install.returncode == 0
+    before = (
+        (codex_home / "config.toml").read_bytes(),
+        (codex_home / "hooks.json").read_bytes(),
+        project_agent.read_bytes(),
+    )
+
+    doctor = _run_cli(
+        "doctor",
+        "--codex-home",
+        str(codex_home),
+        "--project-dir",
+        str(project_directory),
+    )
+
+    assert doctor.returncode == 1
+    assert json.loads(doctor.stdout) == {
+        "codex_home": str(codex_home),
+        "project_directory": str(project_directory),
+        "installation_state": "installed",
+        "healthy": False,
+        "issues": [
+            "project standalone agent file '.codex/agents/reviewer.toml' "
+            "declares managed role 'reviewer' and shadows the user-level "
+            "router role; change its declared name or move it out of the "
+            "active project agents directory"
+        ],
+        "user_standalone_agent_files": [],
+        "project_standalone_agent_files": [
+            ".codex/agents/reviewer.toml",
+        ],
+    }
+    assert (codex_home / "config.toml").read_bytes() == before[0]
+    assert (codex_home / "hooks.json").read_bytes() == before[1]
+    assert project_agent.read_bytes() == before[2]
+
+
 def test_cli_plans_and_applies_a_user_level_hook_launcher_update(
     tmp_path: Path,
 ) -> None:
@@ -198,3 +293,82 @@ def test_cli_plans_and_applies_a_user_level_hook_launcher_update(
         "requires_hook_review": True,
         "requires_new_session": True,
     }
+
+
+def test_cli_user_installation_lifecycle_end_to_end(tmp_path: Path) -> None:
+    codex_home = tmp_path / "codex-home"
+    project_directory = tmp_path / "project"
+    codex_home.mkdir()
+    project_directory.mkdir()
+    config_path = codex_home / "config.toml"
+    config_before = b'model = "user-owned"\n'
+    config_path.write_bytes(config_before)
+    config_path.chmod(0o640)
+    hooks_path = codex_home / "hooks.json"
+    hooks_before = b'{"hooks": {}}\n'
+    hooks_path.write_bytes(hooks_before)
+    hooks_path.chmod(0o644)
+    first_hook = _hook_executable(tmp_path)
+    second_hook = tmp_path / "updated-bin" / "codex-subagent-router-hook"
+    second_hook.parent.mkdir()
+    second_hook.write_text("#!/bin/sh\n")
+    second_hook.chmod(0o755)
+    common = ("--codex-home", str(codex_home))
+
+    plan = _run_cli(
+        "plan",
+        *common,
+        "--hook-executable",
+        str(first_hook),
+    )
+    install = _run_cli(
+        "install",
+        *common,
+        "--hook-executable",
+        str(first_hook),
+    )
+    update_plan = _run_cli(
+        "update",
+        *common,
+        "--hook-executable",
+        str(second_hook),
+        "--dry-run",
+    )
+    update = _run_cli(
+        "update",
+        *common,
+        "--hook-executable",
+        str(second_hook),
+    )
+    doctor = _run_cli(
+        "doctor",
+        *common,
+        "--project-dir",
+        str(project_directory),
+    )
+    uninstall = _run_cli("uninstall", *common)
+    status = _run_cli("status", *common)
+
+    assert [
+        plan.returncode,
+        install.returncode,
+        update_plan.returncode,
+        update.returncode,
+        doctor.returncode,
+        uninstall.returncode,
+        status.returncode,
+    ] == [0, 0, 0, 0, 0, 0, 0]
+    assert json.loads(plan.stdout)["config_action"] == "update"
+    assert json.loads(update_plan.stdout)["hooks_action"] == "update"
+    assert json.loads(doctor.stdout)["healthy"] is True
+    assert json.loads(uninstall.stdout) == {
+        "codex_home": str(codex_home),
+        "config_action": "updated",
+        "hooks_action": "updated",
+    }
+    assert json.loads(status.stdout)["state"] == "not-installed"
+    assert config_path.read_bytes() == config_before
+    assert config_path.stat().st_mode & 0o7777 == 0o640
+    assert hooks_path.read_bytes() == hooks_before
+    assert hooks_path.stat().st_mode & 0o7777 == 0o644
+    assert not (codex_home / "codex-subagent-router").exists()

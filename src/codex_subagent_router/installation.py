@@ -9,6 +9,7 @@ from typing import cast
 from ._installation_agents import (
     inspect_standalone_agents as _inspect_standalone_agents,
 )
+from ._installation_doctor import build_doctor_report as _build_doctor_report
 from ._installation_files import (
     atomic_write as _atomic_write,
 )
@@ -99,6 +100,7 @@ from ._installation_rollback import (
 from ._installation_rollback import (
     validate_rollback_target as _validate_rollback_target,
 )
+from ._installation_types import InstallationDoctorReport as InstallationDoctorReport
 from ._installation_types import (
     InstallationFileAction as InstallationFileAction,
 )
@@ -732,6 +734,18 @@ def installation_status(codex_home: Path) -> InstallationStatus:
         codex_home=codex_home,
         state=InstallationState.MODIFIED,
         details=(*status.details, *standalone_inspection.issues),
+    )
+
+
+def doctor_user_config(
+    codex_home: Path,
+    project_directory: Path,
+) -> InstallationDoctorReport:
+    """Inspect one user installation and active project without writing either."""
+    return _build_doctor_report(
+        codex_home,
+        project_directory,
+        installation_status(codex_home),
     )
 
 

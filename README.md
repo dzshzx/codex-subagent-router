@@ -12,9 +12,9 @@ types for the `PreToolUse`, `SessionStart`, and `SubagentStart` hook boundaries;
 and deny-only validation for routed `spawn_agent` calls. Root-session routing
 guidance, managed subagent role-context handlers, and executable JSON command
 adapters are also available. Explicit user-level installation, owned
-Hook-launcher updates, status, safe rollback, and their command-line entry
-points are implemented. The generated installation lifecycle and the explicit
-V2 configuration each have recorded isolated Codex CLI evidence; see
+Hook-launcher updates, cross-layer diagnosis, safe uninstall, and their
+command-line entry points are implemented. The generated installation lifecycle
+and the explicit V2 configuration each have recorded isolated Codex CLI evidence; see
 [Codex compatibility](#codex-compatibility) for the exact scope and the
 remaining real-backend boundary.
 
@@ -28,7 +28,7 @@ remaining real-backend boundary.
 - `src/` package layout
 - Pure hook handlers behind command and installation adapters
 - Description-only managed roles and recoverable user-configuration transactions
-- POSIX-only verified installation and rollback (POSIX file modes and
+- POSIX-only verified installation lifecycle (POSIX file modes and
   `shlex` quoting); Windows is unverified
 - Test suite gated on Python 3.11 (declared minimum) and the current
   development Python
@@ -56,15 +56,17 @@ alternative mode, not an additional source for the same role. Do not declare
 `researcher`, `reviewer`, `architecture_explorer`, or `interface_designer` in
 any active user or project `agents` directory while using this router. The
 installer recursively rejects those names under the explicit user Codex home;
-project-layer collisions are an explicitly unsupported configuration because a
-user-level installation cannot enumerate every project.
+project-layer collisions remain unsupported, but `doctor` can diagnose one
+explicit project's `.codex/agents` tree without modifying it.
 
 The `0.144.3` probe used package version `0.1.2`. Version `0.1.3` changed only
 branch-agnostic documentation links. Version `0.1.4` retains the same generated
 Hook configuration and runtime contracts while rejecting relative explicit
 launcher paths earlier at the CLI boundary. These packaging and preflight
 changes do not extend the Codex-version compatibility claim beyond the recorded
-probe.
+probe. Version `0.2.0` adds user-level update, doctor, and uninstall lifecycle
+surfaces without changing the generated Hook protocol or expanding the recorded
+Codex-version compatibility claim.
 
 The installed `0.144.3` release binary drifts from its source tag: it still
 reports the flattened `collaborationspawn_agent` hook tool name and its
@@ -275,8 +277,8 @@ active again.
 
 This preflight covers the explicit user Codex home only. A user-level installer
 cannot enumerate every project's `.codex/agents` tree; a project-level
-standalone file with a managed name remains unsupported and must be removed or
-renamed by that project's operator.
+standalone file with a managed name remains unsupported. Run `doctor` for each
+project you intend to use, then remove or rename any reported collision.
 
 If `codex-subagent-router-hook` cannot be resolved on `PATH`, `plan` and
 `install` accept `--hook-executable PATH`. The value must be an absolute path to
@@ -287,6 +289,7 @@ When `plan` exits `0` with an empty `conflicts` array, install and query status:
 ```bash
 codex-subagent-router install --codex-home "$CODEX_HOME"
 codex-subagent-router status --codex-home "$CODEX_HOME"
+codex-subagent-router doctor --codex-home "$CODEX_HOME" --project-dir "$PWD"
 ```
 
 `--codex-home` is always required. The CLI never falls back to `~/.codex`,
@@ -298,11 +301,18 @@ empty `details` array. A completed status query exits `0` for every reported
 state, including `not-installed`, `modified`, and `incomplete`; automation must
 inspect `state` instead of treating exit `0` as proof of a healthy installation.
 
-Successful operations and modeled `plan` or `update --dry-run` conflicts write
-machine-readable JSON to stdout. A plan with conflicts exits `1`. Usage errors
-exit `2` with text on stderr. Failures raised before planning, and installation,
-update, or rollback violations, exit `1` with text on stderr; callers must not
-assume that every nonzero result contains JSON.
+`doctor` combines installation health, user standalone-agent checks, Hook
+launcher checks, and the selected project's `.codex/agents` layer. It is
+read-only. It exits `0` only when its JSON contains `"healthy": true`; diagnosed
+issues are returned as JSON with exit `1`. `--project-dir` defaults to the
+current directory, but automation should pass it explicitly.
+
+Successful operations, `doctor`, and modeled `plan` or `update --dry-run`
+conflicts write machine-readable JSON to stdout. A plan with conflicts or an
+unhealthy doctor report exits `1`. Usage errors exit `2` with text on stderr.
+Failures raised before planning, and installation, update, rollback, or
+uninstall violations, exit `1` with text on stderr; callers must not assume that
+every nonzero result contains JSON.
 
 The installer adds this V2 table and description-only declarations for the four
 managed roles to `config.toml`, adds the three command-hook groups to
@@ -391,27 +401,29 @@ bypass as a production fix.
 Hook launch failures and timeouts are fail-open in Codex, so this router remains
 a policy guardrail, not a security or spending-isolation boundary.
 
-Rollback is explicit:
+Configuration uninstall is explicit:
 
 ```bash
-codex-subagent-router rollback --codex-home "$CODEX_HOME"
+codex-subagent-router uninstall --codex-home "$CODEX_HOME"
 ```
 
-If the installed files are unchanged, rollback restores their exact original
+`uninstall` is a user-facing alias for the same safe transaction exposed as
+`rollback`; it does not create a second removal implementation. If the installed
+files are unchanged, it restores their exact original
 bytes and modes or removes files the installer created. If unrelated content
-was added later, rollback removes only still-intact owned blocks and hook groups.
+was added later, it removes only still-intact owned blocks and hook groups.
 It refuses to proceed when owned content has been modified, when the receipt is
 unhealthy, or while another installation operation holds the lock.
 
-Rollback never modifies `$CODEX_HOME/agents`. Standalone files that predate the
+Neither command modifies `$CODEX_HOME/agents`. Standalone files that predate the
 installation, or that are added later, keep their current paths, bytes, and
-modes. Because manual renames or disables are not installer-owned, rollback
+modes. Because manual renames or disables are not installer-owned, uninstall
 does not reverse them.
 
-Uninstall in this order: run `rollback` first, then remove the package. The
-rollback CLI and the hook launcher live in the package environment, so
+Uninstall in this order: run `uninstall` first, then remove the package with its
+package manager. The CLI and the hook launcher live in the package environment, so
 removing the package first leaves managed hook groups pointing at a missing
-launcher. If that happens, reinstall the same package version and roll back,
+launcher. If that happens, reinstall the same package version and uninstall,
 or repair `hooks.json` manually.
 
 The same transaction seam is available to Python callers. Both paths must be
@@ -421,9 +433,11 @@ explicit; importing the package never reads user configuration:
 from pathlib import Path
 
 from codex_subagent_router import (
+    doctor_user_config,
     install_user_config,
     plan_user_installation,
     plan_user_update,
+    rollback_user_config,
     update_user_config,
 )
 
@@ -433,6 +447,8 @@ plan = plan_user_installation(codex_home, hook_command)
 result = install_user_config(codex_home, hook_command)
 update_plan = plan_user_update(codex_home, hook_command)
 updated = update_user_config(codex_home, hook_command)
+report = doctor_user_config(codex_home, Path("/explicit/project"))
+removed = rollback_user_config(codex_home)
 ```
 
 Policy rationale and protocol evidence are documented in
@@ -466,7 +482,7 @@ git diff --check
 3. Deny-only `PreToolUse` validator. **Complete.**
 4. `SessionStart` routing guidance and `SubagentStart` role contracts. **Complete.**
 5. Isolated end-to-end hook probes. **Complete.**
-6. User-level installation and rollback tooling. **Complete.**
+6. User-level plan/install/update/status/doctor/uninstall lifecycle. **Complete.**
 
 ## Prohibitions
 

@@ -9,12 +9,14 @@ from pathlib import Path
 from typing import NoReturn, cast
 
 from .installation import (
+    InstallationDoctorReport,
     InstallationPlan,
     InstallationResult,
     InstallationStatus,
     InstallationUpdatePlan,
     InstallationViolation,
     RollbackResult,
+    doctor_user_config,
     install_user_config,
     installation_status,
     plan_user_installation,
@@ -74,6 +76,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             _print_json(_result_document(update_result))
             return 0
+        if operation == "doctor":
+            project_directory = cast(Path, arguments.project_directory).absolute()
+            report = doctor_user_config(codex_home, project_directory)
+            _print_json(_doctor_document(report))
+            return 0 if report.healthy else 1
         if operation == "status":
             _print_json(_status_document(installation_status(codex_home)))
             return 0
@@ -102,7 +109,16 @@ def _build_parser() -> _ArgumentParser:
                 action="store_true",
                 help="plan the update without writing files",
             )
-    for operation in ("status", "rollback"):
+    doctor_parser = subparsers.add_parser("doctor")
+    _add_codex_home_argument(doctor_parser)
+    doctor_parser.add_argument(
+        "--project-dir",
+        dest="project_directory",
+        type=_codex_home_argument,
+        default=Path.cwd(),
+        help="project directory to inspect (defaults to the current directory)",
+    )
+    for operation in ("status", "rollback", "uninstall"):
         subparser = subparsers.add_parser(operation)
         _add_codex_home_argument(subparser)
     return parser
@@ -183,6 +199,18 @@ def _status_document(status: InstallationStatus) -> dict[str, object]:
         "codex_home": str(status.codex_home),
         "state": status.state.value,
         "details": list(status.details),
+    }
+
+
+def _doctor_document(report: InstallationDoctorReport) -> dict[str, object]:
+    return {
+        "codex_home": str(report.codex_home),
+        "project_directory": str(report.project_directory),
+        "installation_state": report.installation_state.value,
+        "healthy": report.healthy,
+        "issues": list(report.issues),
+        "user_standalone_agent_files": list(report.user_standalone_agent_files),
+        "project_standalone_agent_files": list(report.project_standalone_agent_files),
     }
 
 
