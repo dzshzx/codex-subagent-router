@@ -129,26 +129,28 @@ def plan_user_installation(
     """Plan installation into one explicit Codex home without writing files."""
     standalone_inspection = _inspect_standalone_agents(codex_home)
     standalone_files = standalone_inspection.files_to_preserve
+
+    def blocked_plan(
+        conflict: str,
+        *additional_conflicts: str,
+    ) -> InstallationPlan:
+        return _blocked_plan(
+            codex_home,
+            conflict,
+            *additional_conflicts,
+            standalone_agent_files_to_preserve=standalone_files,
+        )
+
     installation_directory = codex_home / _INSTALLATION_DIRECTORY
     state_violation = _installation_state_path_violation(installation_directory)
     if state_violation is not None:
-        return _blocked_plan(
-            codex_home,
-            state_violation,
-            standalone_agent_files_to_preserve=standalone_files,
-        )
+        return blocked_plan(state_violation)
     lock_path = _operation_lock_path(installation_directory)
     if lock_path.exists() or lock_path.is_symlink():
-        return _blocked_plan(
-            codex_home,
-            "another installation operation is in progress",
-            standalone_agent_files_to_preserve=standalone_files,
-        )
+        return blocked_plan("another installation operation is in progress")
     if (installation_directory / _TRANSACTION_NAME).exists():
-        return _blocked_plan(
-            codex_home,
+        return blocked_plan(
             "incomplete installation transaction must be rolled back",
-            standalone_agent_files_to_preserve=standalone_files,
         )
     manifest_path = installation_directory / _MANIFEST_NAME
     has_healthy_installation = False
@@ -156,27 +158,19 @@ def plan_user_installation(
         status = _installation_status_without_lock(codex_home)
         if status.state is not InstallationState.INSTALLED:
             detail = "; ".join(status.details) if status.details else status.state.value
-            return _blocked_plan(
-                codex_home,
+            return blocked_plan(
                 f"existing installation state is not healthy: {detail}",
-                standalone_agent_files_to_preserve=standalone_files,
             )
         has_healthy_installation = True
     config_path = codex_home / "config.toml"
     hooks_path = codex_home / "hooks.json"
     violation = _first_target_violation(config_path, hooks_path)
     if violation is not None:
-        return _blocked_plan(
-            codex_home,
-            violation,
-            standalone_agent_files_to_preserve=standalone_files,
-        )
+        return blocked_plan(violation)
     if standalone_inspection.issues:
-        return _blocked_plan(
-            codex_home,
+        return blocked_plan(
             standalone_inspection.issues[0],
             *standalone_inspection.issues[1:],
-            standalone_agent_files_to_preserve=standalone_files,
         )
     plan = replace(
         _plan_from_snapshots(
@@ -192,11 +186,9 @@ def plan_user_installation(
         or plan.config_action is not InstallationFileAction.UNCHANGED
         or plan.hooks_action is not InstallationFileAction.UNCHANGED
     ):
-        return _blocked_plan(
-            codex_home,
+        return blocked_plan(
             "existing installation differs from the requested configuration; "
             "roll it back before reinstalling",
-            standalone_agent_files_to_preserve=standalone_files,
         )
     # install validates the hook command after its conflict checks; mirror
     # that order so plan surfaces the same blocker instead of a clean plan.
@@ -204,11 +196,7 @@ def plan_user_installation(
         try:
             _validate_hook_command(hook_command)
         except InstallationViolation as violation:
-            return _blocked_plan(
-                codex_home,
-                str(violation),
-                standalone_agent_files_to_preserve=standalone_files,
-            )
+            return blocked_plan(str(violation))
     return plan
 
 
