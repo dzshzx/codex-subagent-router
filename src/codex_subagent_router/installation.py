@@ -61,9 +61,6 @@ from ._installation_files import (
     sha256 as _sha256,
 )
 from ._installation_files import (
-    snapshot_original_content as _snapshot_original_content,
-)
-from ._installation_files import (
     target_mode as _target_mode,
 )
 from ._installation_files import (
@@ -116,16 +113,17 @@ from ._installation_types import (
 from ._installation_types import RollbackFileAction as RollbackFileAction
 from ._installation_types import RollbackResult as RollbackResult
 from ._installation_update import (
-    apply_update_recovery_target as _apply_update_recovery_target,
+    apply_hook_launcher_update as _apply_hook_launcher_update,
+)
+from ._installation_update import blocked_update_plan as _blocked_update_plan
+from ._installation_update import (
+    capture_hook_update_snapshots as _capture_hook_update_snapshots,
 )
 from ._installation_update import (
-    parse_update_recovery_targets as _parse_update_recovery_targets,
+    plan_hook_launcher_update as _plan_hook_launcher_update,
 )
 from ._installation_update import (
-    update_journal_document as _update_journal_document,
-)
-from ._installation_update import (
-    update_recovery_action as _update_recovery_action,
+    recover_update_transaction as _recover_update_transaction,
 )
 from ._installation_v2 import (
     inspect_multi_agent_v2_configuration as _inspect_multi_agent_v2_configuration,
@@ -395,6 +393,7 @@ def plan_user_update(
 def _plan_user_update_without_lock(
     codex_home: Path,
     hook_command: tuple[str, ...],
+    manifest_snapshot: bytes | None = None,
 ) -> InstallationUpdatePlan:
     standalone_inspection = _inspect_standalone_agents(codex_home)
     if standalone_inspection.issues:
@@ -421,7 +420,11 @@ def _plan_user_update_without_lock(
             f"existing installation state is not healthy: {detail}",
         )
     try:
-        manifest_document = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest_document = json.loads(
+            manifest_snapshot
+            if manifest_snapshot is not None
+            else manifest_path.read_bytes()
+        )
         if not isinstance(manifest_document, dict):
             raise TypeError
         manifest = cast(dict[str, object], manifest_document)
@@ -430,78 +433,9 @@ def _plan_user_update_without_lock(
                 codex_home,
                 "installed receipt must be rolled back before update",
             )
-        _validate_hook_command(hook_command)
-        hooks_manifest = cast(dict[str, object], manifest["hooks"])
-        managed_groups = cast(dict[str, list[object]], hooks_manifest["managed_groups"])
-        expected_groups = cast(
-            dict[str, list[object]], hooks_manifest["expected_groups"]
-        )
-    except (json.JSONDecodeError, UnicodeDecodeError, OSError, KeyError, TypeError):
+    except (json.JSONDecodeError, UnicodeDecodeError, OSError, TypeError):
         return _blocked_update_plan(codex_home, "installation manifest is invalid")
-    except InstallationViolation as violation:
-        return _blocked_update_plan(codex_home, str(violation))
-    desired_groups = _managed_hook_groups(hook_command)
-    if desired_groups == expected_groups:
-        return InstallationUpdatePlan(
-            codex_home=codex_home,
-            hooks_action=InstallationFileAction.UNCHANGED,
-            hook_events_to_update=(),
-            conflicts=(),
-            requires_hook_review=False,
-            requires_new_session=False,
-        )
-    if managed_groups != expected_groups:
-        return _blocked_update_plan(
-            codex_home,
-            "Hook launcher update would modify user-owned compatible hook groups",
-        )
-    if not _hook_groups_differ_only_in_commands(expected_groups, desired_groups):
-        return _blocked_update_plan(
-            codex_home,
-            "installed Hook specification requires an explicit migration",
-        )
-    return InstallationUpdatePlan(
-        codex_home=codex_home,
-        hooks_action=InstallationFileAction.UPDATE,
-        hook_events_to_update=tuple(desired_groups),
-        conflicts=(),
-        requires_hook_review=True,
-        requires_new_session=True,
-    )
-
-
-def _blocked_update_plan(
-    codex_home: Path,
-    conflict: str,
-    *additional_conflicts: str,
-) -> InstallationUpdatePlan:
-    return InstallationUpdatePlan(
-        codex_home=codex_home,
-        hooks_action=InstallationFileAction.UNCHANGED,
-        hook_events_to_update=(),
-        conflicts=(conflict, *additional_conflicts),
-        requires_hook_review=True,
-        requires_new_session=True,
-    )
-
-
-def _hook_groups_differ_only_in_commands(
-    current: dict[str, list[object]],
-    desired: dict[str, list[object]],
-) -> bool:
-    def without_commands(groups: dict[str, list[object]]) -> dict[str, list[object]]:
-        normalized = cast(
-            dict[str, list[object]],
-            json.loads(json.dumps(groups)),
-        )
-        for event_groups in normalized.values():
-            for group in event_groups:
-                hooks = cast(list[object], cast(dict[str, object], group)["hooks"])
-                for hook in hooks:
-                    cast(dict[str, object], hook)["command"] = "<launcher>"
-        return normalized
-
-    return without_commands(current) == without_commands(desired)
+    return _plan_hook_launcher_update(codex_home, hook_command, manifest)
 
 
 def update_user_config(
@@ -518,6 +452,14 @@ def update_user_config(
         if plan.conflicts:
             raise InstallationViolation("; ".join(plan.conflicts))
         manifest_path = installation_directory / _MANIFEST_NAME
+        snapshots = _capture_hook_update_snapshots(codex_home, manifest_path)
+        plan = _plan_user_update_without_lock(
+            codex_home,
+            hook_command,
+            snapshots.manifest.content,
+        )
+        if plan.conflicts:
+            raise InstallationViolation("; ".join(plan.conflicts))
         result = InstallationResult(
             codex_home=codex_home,
             config_path=codex_home / "config.toml",
@@ -531,83 +473,10 @@ def update_user_config(
         _apply_hook_launcher_update(
             codex_home,
             hook_command,
-            manifest_path,
+            snapshots,
             installation_directory / _TRANSACTION_NAME,
         )
         return result
-
-
-def _apply_hook_launcher_update(
-    codex_home: Path,
-    hook_command: tuple[str, ...],
-    manifest_path: Path,
-    transaction_path: Path,
-) -> None:
-    hooks_path = codex_home / "hooks.json"
-    hooks_before = hooks_path.read_bytes()
-    hooks_mode = _target_mode(hooks_path)
-    manifest_before = manifest_path.read_bytes()
-    manifest_mode = _target_mode(manifest_path)
-    manifest = cast(dict[str, object], json.loads(manifest_before))
-    hooks_manifest = cast(dict[str, object], manifest["hooks"])
-    current_groups = cast(dict[str, list[object]], hooks_manifest["managed_groups"])
-    desired_groups = _managed_hook_groups(hook_command)
-    hooks_document = cast(dict[str, object], json.loads(hooks_before))
-    hooks = cast(dict[str, list[object]], hooks_document["hooks"])
-    for event_name, old_groups in current_groups.items():
-        event_groups = hooks[event_name]
-        for old_group, new_group in zip(
-            old_groups,
-            desired_groups[event_name],
-            strict=True,
-        ):
-            event_groups[event_groups.index(old_group)] = new_group
-    hooks_after = _json_document(hooks_document)
-    hooks_manifest["managed_groups"] = desired_groups
-    hooks_manifest["expected_groups"] = desired_groups
-    hooks_manifest["installed_sha256"] = _sha256(
-        _merge_hook_groups(
-            _snapshot_original_content(hooks_manifest),
-            desired_groups,
-        )
-    )
-    manifest_after = _json_document(manifest)
-    journal = _update_journal_document(
-        hooks_before,
-        hooks_mode,
-        hooks_after,
-        manifest_before,
-        manifest_mode,
-        manifest_after,
-    )
-    try:
-        _atomic_write(transaction_path, _json_document(journal), 0o600)
-        _guarded_replace(hooks_path, hooks_before, hooks_after, hooks_mode)
-        _guarded_replace(
-            manifest_path,
-            manifest_before,
-            manifest_after,
-            manifest_mode,
-        )
-    except (OSError, InstallationViolation) as error:
-        detail = f"installation update transaction failed: {error}"
-        try:
-            _recover_update_transaction(
-                codex_home,
-                journal,
-                manifest_path,
-                transaction_path,
-            )
-        except (OSError, InstallationViolation) as recovery_error:
-            detail += f"; update recovery failed: {recovery_error}"
-        raise InstallationViolation(detail) from error
-    try:
-        transaction_path.unlink()
-    except OSError as error:
-        raise InstallationViolation(
-            "installation update succeeded but its transaction journal could not "
-            f"be removed: {error}"
-        ) from error
 
 
 def install_user_config(
@@ -1031,32 +900,6 @@ def _rollback_user_config_locked(codex_home: Path) -> RollbackResult:
         hooks_target,
         manifest_path,
         transaction_path,
-    )
-
-
-def _recover_update_transaction(
-    codex_home: Path,
-    journal: dict[str, object],
-    manifest_path: Path,
-    transaction_path: Path,
-) -> RollbackResult:
-    hooks_path = codex_home / "hooks.json"
-    hooks_target, manifest_target = _parse_update_recovery_targets(journal)
-    hooks_action = _update_recovery_action(hooks_path, hooks_target)
-    _update_recovery_action(manifest_path, manifest_target)
-    _apply_update_recovery_target(manifest_path, manifest_target)
-    _apply_update_recovery_target(hooks_path, hooks_target)
-    try:
-        transaction_path.unlink()
-    except OSError as error:
-        raise InstallationViolation(
-            "installation update recovery succeeded but its transaction journal "
-            f"could not be removed: {error}"
-        ) from error
-    return RollbackResult(
-        codex_home=codex_home,
-        config_action=RollbackFileAction.UNCHANGED,
-        hooks_action=hooks_action,
     )
 
 

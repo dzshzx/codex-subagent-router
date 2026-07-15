@@ -186,6 +186,35 @@ def test_update_with_the_current_launcher_is_idempotent(tmp_path: Path) -> None:
     assert installed.manifest_path.read_bytes() == manifest_before
 
 
+def test_update_rejects_non_launcher_command_changes(tmp_path: Path) -> None:
+    old_hook_executable = _hook_executable(tmp_path)
+    install_user_config(
+        tmp_path,
+        (str(old_hook_executable), "--mode", "old"),
+    )
+    new_hook_executable = tmp_path / "new-bin" / "codex-subagent-router-hook"
+    new_hook_executable.parent.mkdir()
+    new_hook_executable.write_text("#!/bin/sh\n")
+    new_hook_executable.chmod(0o755)
+
+    plan = plan_user_update(
+        tmp_path,
+        (str(new_hook_executable), "--mode", "new"),
+    )
+
+    assert plan.conflicts == (
+        "installed Hook specification requires an explicit migration",
+    )
+    with pytest.raises(
+        InstallationViolation,
+        match="requires an explicit migration",
+    ):
+        update_user_config(
+            tmp_path,
+            (str(new_hook_executable), "--mode", "new"),
+        )
+
+
 def test_update_preserves_unrelated_hooks_added_after_installation(
     tmp_path: Path,
 ) -> None:

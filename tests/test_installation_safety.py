@@ -13,7 +13,9 @@ from codex_subagent_router import (
     install_user_config,
     installation_status,
     plan_user_installation,
+    plan_user_update,
     rollback_user_config,
+    update_user_config,
 )
 
 
@@ -387,6 +389,60 @@ def test_reinstall_refuses_an_invalid_existing_manifest(tmp_path: Path) -> None:
     assert installed.config_path.read_bytes() == before[0]
     assert installed.hooks_path.read_bytes() == before[1]
     assert installed.manifest_path.read_bytes() == before[2]
+
+
+def test_update_refuses_an_invalid_existing_manifest(tmp_path: Path) -> None:
+    old_hook_executable = _hook_executable(tmp_path)
+    installed = install_user_config(tmp_path, (str(old_hook_executable),))
+    installed.manifest_path.write_text("{}\n")
+    before = (
+        installed.config_path.read_bytes(),
+        installed.hooks_path.read_bytes(),
+        installed.manifest_path.read_bytes(),
+    )
+    new_hook_executable = tmp_path / "bin" / "replacement-hook"
+    new_hook_executable.write_text("#!/bin/sh\n")
+    new_hook_executable.chmod(0o755)
+
+    plan = plan_user_update(tmp_path, (str(new_hook_executable),))
+
+    assert plan.conflicts == (
+        "existing installation state is not healthy: installation manifest is invalid",
+    )
+    with pytest.raises(
+        InstallationViolation,
+        match="installation manifest is invalid",
+    ):
+        update_user_config(tmp_path, (str(new_hook_executable),))
+    assert installed.config_path.read_bytes() == before[0]
+    assert installed.hooks_path.read_bytes() == before[1]
+    assert installed.manifest_path.read_bytes() == before[2]
+
+
+def test_update_refuses_a_symlinked_hooks_file(tmp_path: Path) -> None:
+    old_hook_executable = _hook_executable(tmp_path)
+    installed = install_user_config(tmp_path, (str(old_hook_executable),))
+    hooks_before = installed.hooks_path.read_bytes()
+    installed.hooks_path.unlink()
+    external_hooks = tmp_path / "external-hooks.json"
+    external_hooks.write_bytes(hooks_before)
+    installed.hooks_path.symlink_to(external_hooks)
+    new_hook_executable = tmp_path / "bin" / "replacement-hook"
+    new_hook_executable.write_text("#!/bin/sh\n")
+    new_hook_executable.chmod(0o755)
+
+    plan = plan_user_update(tmp_path, (str(new_hook_executable),))
+
+    assert plan.conflicts == (
+        "existing installation state is not healthy: "
+        "hooks.json must not be a symbolic link",
+    )
+    with pytest.raises(
+        InstallationViolation,
+        match="hooks.json must not be a symbolic link",
+    ):
+        update_user_config(tmp_path, (str(new_hook_executable),))
+    assert external_hooks.read_bytes() == hooks_before
 
 
 def test_install_owns_only_missing_hook_groups(tmp_path: Path) -> None:

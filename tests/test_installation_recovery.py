@@ -3,8 +3,11 @@ import hashlib
 import json
 from pathlib import Path
 
+import pytest
+
 from codex_subagent_router import (
     InstallationState,
+    InstallationViolation,
     RollbackFileAction,
     RollbackResult,
     install_user_config,
@@ -174,3 +177,25 @@ def test_update_recovery_restores_the_previous_healthy_installation(
     assert installed.manifest_path.read_bytes() == manifest_before
     assert installation_status(tmp_path).state is InstallationState.INSTALLED
     assert not transaction_path.exists()
+
+
+def test_update_recovery_rejects_an_invalid_journal(tmp_path: Path) -> None:
+    installed = install_user_config(tmp_path, (str(_hook_executable(tmp_path)),))
+    before = (
+        installed.config_path.read_bytes(),
+        installed.hooks_path.read_bytes(),
+        installed.manifest_path.read_bytes(),
+    )
+    transaction_path = installed.manifest_path.with_name("transaction.json")
+    transaction_path.write_text('{"schema_version":1,"state":"updating","update":{}}\n')
+
+    with pytest.raises(
+        InstallationViolation,
+        match="installation update transaction journal is invalid",
+    ):
+        rollback_user_config(tmp_path)
+
+    assert installed.config_path.read_bytes() == before[0]
+    assert installed.hooks_path.read_bytes() == before[1]
+    assert installed.manifest_path.read_bytes() == before[2]
+    assert transaction_path.exists()
