@@ -1,10 +1,15 @@
 from pathlib import Path
 
+import pytest
+
 from codex_subagent_router import (
     InstallationFileAction,
+    InstallationViolation,
     install_user_config,
     plan_user_installation,
+    plan_user_update,
     rollback_user_config,
+    update_user_config,
 )
 
 
@@ -246,3 +251,34 @@ def test_blocked_plan_still_reports_standalone_files_to_preserve(
 
     assert actual.conflicts == ("another installation operation is in progress",)
     assert actual.standalone_agent_files_to_preserve == ("agents/user-owned.toml",)
+
+
+def test_update_refuses_a_new_standalone_managed_role_conflict(
+    tmp_path: Path,
+) -> None:
+    old_hook_executable = _hook_executable(tmp_path)
+    installed = install_user_config(tmp_path, (str(old_hook_executable),))
+    hooks_before = installed.hooks_path.read_bytes()
+    standalone_agent = tmp_path / "agents" / "custom-review.toml"
+    standalone_agent.parent.mkdir()
+    standalone_agent.write_text(
+        'name = "reviewer"\n'
+        'description = "User-owned reviewer"\n'
+        'developer_instructions = "Review independently."\n'
+    )
+    new_hook_executable = tmp_path / "new-bin" / "codex-subagent-router-hook"
+    new_hook_executable.parent.mkdir()
+    new_hook_executable.write_text("#!/bin/sh\n")
+    new_hook_executable.chmod(0o755)
+
+    plan = plan_user_update(tmp_path, (str(new_hook_executable),))
+
+    expected_conflict = (
+        "standalone agent file 'agents/custom-review.toml' declares managed role "
+        "'reviewer'; change its declared name or move it out of the active agents "
+        "directory before installation; the installer will leave the file unchanged"
+    )
+    assert plan.conflicts == (expected_conflict,)
+    with pytest.raises(InstallationViolation, match="standalone agent file"):
+        update_user_config(tmp_path, (str(new_hook_executable),))
+    assert installed.hooks_path.read_bytes() == hooks_before

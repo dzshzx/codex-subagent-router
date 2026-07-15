@@ -12,12 +12,15 @@ from .installation import (
     InstallationPlan,
     InstallationResult,
     InstallationStatus,
+    InstallationUpdatePlan,
     InstallationViolation,
     RollbackResult,
     install_user_config,
     installation_status,
     plan_user_installation,
+    plan_user_update,
     rollback_user_config,
+    update_user_config,
 )
 
 
@@ -57,6 +60,20 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             _print_json(_result_document(result))
             return 0
+        if operation == "update":
+            if cast(bool, arguments.dry_run):
+                update_plan = plan_user_update(
+                    codex_home,
+                    (_hook_executable(arguments),),
+                )
+                _print_json(_update_plan_document(update_plan))
+                return 1 if update_plan.conflicts else 0
+            update_result = update_user_config(
+                codex_home,
+                (_hook_executable(arguments),),
+            )
+            _print_json(_result_document(update_result))
+            return 0
         if operation == "status":
             _print_json(_status_document(installation_status(codex_home)))
             return 0
@@ -71,7 +88,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 def _build_parser() -> _ArgumentParser:
     parser = _ArgumentParser(prog="codex-subagent-router")
     subparsers = parser.add_subparsers(dest="operation", required=True)
-    for operation in ("plan", "install"):
+    for operation in ("plan", "install", "update"):
         subparser = subparsers.add_parser(operation)
         _add_codex_home_argument(subparser)
         subparser.add_argument(
@@ -79,6 +96,12 @@ def _build_parser() -> _ArgumentParser:
             type=_absolute_path_argument,
             help="absolute hook executable path (defaults to PATH lookup)",
         )
+        if operation == "update":
+            subparser.add_argument(
+                "--dry-run",
+                action="store_true",
+                help="plan the update without writing files",
+            )
     for operation in ("status", "rollback"):
         subparser = subparsers.add_parser(operation)
         _add_codex_home_argument(subparser)
@@ -141,6 +164,17 @@ def _result_document(result: InstallationResult) -> dict[str, object]:
         "manifest_path": str(result.manifest_path),
         "requires_hook_review": result.requires_hook_review,
         "requires_new_session": result.requires_new_session,
+    }
+
+
+def _update_plan_document(plan: InstallationUpdatePlan) -> dict[str, object]:
+    return {
+        "codex_home": str(plan.codex_home),
+        "hooks_action": plan.hooks_action.value,
+        "hook_events_to_update": list(plan.hook_events_to_update),
+        "conflicts": list(plan.conflicts),
+        "requires_hook_review": plan.requires_hook_review,
+        "requires_new_session": plan.requires_new_session,
     }
 
 

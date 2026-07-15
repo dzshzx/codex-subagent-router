@@ -6,6 +6,7 @@ from codex_subagent_router import (
     RollbackResult,
     install_user_config,
     rollback_user_config,
+    update_user_config,
 )
 
 
@@ -46,6 +47,34 @@ def test_rollback_preserves_unrelated_changes_made_after_installation(
         "hooks": {"Stop": [{"matcher": "user-owned", "hooks": []}]}
     }
     assert not installed.manifest_path.parent.exists()
+
+
+def test_rollback_after_update_restores_the_first_installation_snapshot(
+    tmp_path: Path,
+) -> None:
+    config_path = tmp_path / "config.toml"
+    hooks_path = tmp_path / "hooks.json"
+    original_config = b'model = "gpt-5.6-sol"\n'
+    original_hooks = b'{"description":"user hooks","hooks":{"Stop":[]}}\n'
+    config_path.write_bytes(original_config)
+    hooks_path.write_bytes(original_hooks)
+    config_path.chmod(0o640)
+    hooks_path.chmod(0o644)
+    old_hook_executable = _hook_executable(tmp_path)
+    install_user_config(tmp_path, (str(old_hook_executable),))
+    new_hook_executable = tmp_path / "new-bin" / "codex-subagent-router-hook"
+    new_hook_executable.parent.mkdir()
+    new_hook_executable.write_text("#!/bin/sh\n")
+    new_hook_executable.chmod(0o755)
+    update_user_config(tmp_path, (str(new_hook_executable),))
+
+    rollback_user_config(tmp_path)
+
+    assert config_path.read_bytes() == original_config
+    assert hooks_path.read_bytes() == original_hooks
+    assert config_path.stat().st_mode & 0o7777 == 0o640
+    assert hooks_path.stat().st_mode & 0o7777 == 0o644
+    assert not (tmp_path / "codex-subagent-router").exists()
 
 
 def test_rollback_preserves_standalone_agent_files(tmp_path: Path) -> None:

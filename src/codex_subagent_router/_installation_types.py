@@ -46,6 +46,18 @@ class InstallationPlan:
 
 
 @dataclass(frozen=True, slots=True)
+class InstallationUpdatePlan:
+    """A read-only description of one installed Hook launcher update."""
+
+    codex_home: Path
+    hooks_action: InstallationFileAction
+    hook_events_to_update: tuple[str, ...]
+    conflicts: tuple[str, ...]
+    requires_hook_review: bool
+    requires_new_session: bool
+
+
+@dataclass(frozen=True, slots=True)
 class InstallationResult:
     """Paths and follow-up requirements for a completed installation."""
 

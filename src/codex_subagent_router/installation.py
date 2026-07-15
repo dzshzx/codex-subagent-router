@@ -61,6 +61,9 @@ from ._installation_files import (
     sha256 as _sha256,
 )
 from ._installation_files import (
+    snapshot_original_content as _snapshot_original_content,
+)
+from ._installation_files import (
     target_mode as _target_mode,
 )
 from ._installation_files import (
@@ -106,11 +109,24 @@ from ._installation_types import InstallationPlan as InstallationPlan
 from ._installation_types import InstallationResult as InstallationResult
 from ._installation_types import InstallationState as InstallationState
 from ._installation_types import InstallationStatus as InstallationStatus
+from ._installation_types import InstallationUpdatePlan as InstallationUpdatePlan
 from ._installation_types import (
     InstallationViolation as InstallationViolation,
 )
 from ._installation_types import RollbackFileAction as RollbackFileAction
 from ._installation_types import RollbackResult as RollbackResult
+from ._installation_update import (
+    apply_update_recovery_target as _apply_update_recovery_target,
+)
+from ._installation_update import (
+    parse_update_recovery_targets as _parse_update_recovery_targets,
+)
+from ._installation_update import (
+    update_journal_document as _update_journal_document,
+)
+from ._installation_update import (
+    update_recovery_action as _update_recovery_action,
+)
 from ._installation_v2 import (
     inspect_multi_agent_v2_configuration as _inspect_multi_agent_v2_configuration,
 )
@@ -356,6 +372,242 @@ def _blocked_plan(
         requires_new_session=True,
         standalone_agent_files_to_preserve=standalone_agent_files_to_preserve,
     )
+
+
+def plan_user_update(
+    codex_home: Path,
+    hook_command: tuple[str, ...],
+) -> InstallationUpdatePlan:
+    """Plan an owned Hook launcher update without writing user files."""
+    installation_directory = codex_home / _INSTALLATION_DIRECTORY
+    state_violation = _installation_state_path_violation(installation_directory)
+    if state_violation is not None:
+        return _blocked_update_plan(codex_home, state_violation)
+    lock_path = _operation_lock_path(installation_directory)
+    if lock_path.exists() or lock_path.is_symlink():
+        return _blocked_update_plan(
+            codex_home,
+            "another installation operation is in progress",
+        )
+    return _plan_user_update_without_lock(codex_home, hook_command)
+
+
+def _plan_user_update_without_lock(
+    codex_home: Path,
+    hook_command: tuple[str, ...],
+) -> InstallationUpdatePlan:
+    standalone_inspection = _inspect_standalone_agents(codex_home)
+    if standalone_inspection.issues:
+        return _blocked_update_plan(
+            codex_home,
+            standalone_inspection.issues[0],
+            *standalone_inspection.issues[1:],
+        )
+    installation_directory = codex_home / _INSTALLATION_DIRECTORY
+    transaction_path = installation_directory / _TRANSACTION_NAME
+    if transaction_path.exists() or transaction_path.is_symlink():
+        return _blocked_update_plan(
+            codex_home,
+            "incomplete installation transaction must be rolled back",
+        )
+    manifest_path = installation_directory / _MANIFEST_NAME
+    if not manifest_path.is_file():
+        return _blocked_update_plan(codex_home, "installation is not installed")
+    status = _installation_status_without_lock(codex_home)
+    if status.state is not InstallationState.INSTALLED:
+        detail = "; ".join(status.details) if status.details else status.state.value
+        return _blocked_update_plan(
+            codex_home,
+            f"existing installation state is not healthy: {detail}",
+        )
+    try:
+        manifest_document = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if not isinstance(manifest_document, dict):
+            raise TypeError
+        manifest = cast(dict[str, object], manifest_document)
+        if manifest.get("schema_version") != 2:
+            return _blocked_update_plan(
+                codex_home,
+                "installed receipt must be rolled back before update",
+            )
+        _validate_hook_command(hook_command)
+        hooks_manifest = cast(dict[str, object], manifest["hooks"])
+        managed_groups = cast(dict[str, list[object]], hooks_manifest["managed_groups"])
+        expected_groups = cast(
+            dict[str, list[object]], hooks_manifest["expected_groups"]
+        )
+    except (json.JSONDecodeError, UnicodeDecodeError, OSError, KeyError, TypeError):
+        return _blocked_update_plan(codex_home, "installation manifest is invalid")
+    except InstallationViolation as violation:
+        return _blocked_update_plan(codex_home, str(violation))
+    desired_groups = _managed_hook_groups(hook_command)
+    if desired_groups == expected_groups:
+        return InstallationUpdatePlan(
+            codex_home=codex_home,
+            hooks_action=InstallationFileAction.UNCHANGED,
+            hook_events_to_update=(),
+            conflicts=(),
+            requires_hook_review=False,
+            requires_new_session=False,
+        )
+    if managed_groups != expected_groups:
+        return _blocked_update_plan(
+            codex_home,
+            "Hook launcher update would modify user-owned compatible hook groups",
+        )
+    if not _hook_groups_differ_only_in_commands(expected_groups, desired_groups):
+        return _blocked_update_plan(
+            codex_home,
+            "installed Hook specification requires an explicit migration",
+        )
+    return InstallationUpdatePlan(
+        codex_home=codex_home,
+        hooks_action=InstallationFileAction.UPDATE,
+        hook_events_to_update=tuple(desired_groups),
+        conflicts=(),
+        requires_hook_review=True,
+        requires_new_session=True,
+    )
+
+
+def _blocked_update_plan(
+    codex_home: Path,
+    conflict: str,
+    *additional_conflicts: str,
+) -> InstallationUpdatePlan:
+    return InstallationUpdatePlan(
+        codex_home=codex_home,
+        hooks_action=InstallationFileAction.UNCHANGED,
+        hook_events_to_update=(),
+        conflicts=(conflict, *additional_conflicts),
+        requires_hook_review=True,
+        requires_new_session=True,
+    )
+
+
+def _hook_groups_differ_only_in_commands(
+    current: dict[str, list[object]],
+    desired: dict[str, list[object]],
+) -> bool:
+    def without_commands(groups: dict[str, list[object]]) -> dict[str, list[object]]:
+        normalized = cast(
+            dict[str, list[object]],
+            json.loads(json.dumps(groups)),
+        )
+        for event_groups in normalized.values():
+            for group in event_groups:
+                hooks = cast(list[object], cast(dict[str, object], group)["hooks"])
+                for hook in hooks:
+                    cast(dict[str, object], hook)["command"] = "<launcher>"
+        return normalized
+
+    return without_commands(current) == without_commands(desired)
+
+
+def update_user_config(
+    codex_home: Path,
+    hook_command: tuple[str, ...],
+) -> InstallationResult:
+    """Update receipt-owned Hook launchers in one explicit Codex home."""
+    installation_directory = codex_home / _INSTALLATION_DIRECTORY
+    violation = _installation_state_path_violation(installation_directory)
+    if violation is not None:
+        raise InstallationViolation(violation)
+    with _installation_lock(installation_directory):
+        plan = _plan_user_update_without_lock(codex_home, hook_command)
+        if plan.conflicts:
+            raise InstallationViolation("; ".join(plan.conflicts))
+        manifest_path = installation_directory / _MANIFEST_NAME
+        result = InstallationResult(
+            codex_home=codex_home,
+            config_path=codex_home / "config.toml",
+            hooks_path=codex_home / "hooks.json",
+            manifest_path=manifest_path,
+            requires_hook_review=plan.requires_hook_review,
+            requires_new_session=plan.requires_new_session,
+        )
+        if plan.hooks_action is InstallationFileAction.UNCHANGED:
+            return result
+        _apply_hook_launcher_update(
+            codex_home,
+            hook_command,
+            manifest_path,
+            installation_directory / _TRANSACTION_NAME,
+        )
+        return result
+
+
+def _apply_hook_launcher_update(
+    codex_home: Path,
+    hook_command: tuple[str, ...],
+    manifest_path: Path,
+    transaction_path: Path,
+) -> None:
+    hooks_path = codex_home / "hooks.json"
+    hooks_before = hooks_path.read_bytes()
+    hooks_mode = _target_mode(hooks_path)
+    manifest_before = manifest_path.read_bytes()
+    manifest_mode = _target_mode(manifest_path)
+    manifest = cast(dict[str, object], json.loads(manifest_before))
+    hooks_manifest = cast(dict[str, object], manifest["hooks"])
+    current_groups = cast(dict[str, list[object]], hooks_manifest["managed_groups"])
+    desired_groups = _managed_hook_groups(hook_command)
+    hooks_document = cast(dict[str, object], json.loads(hooks_before))
+    hooks = cast(dict[str, list[object]], hooks_document["hooks"])
+    for event_name, old_groups in current_groups.items():
+        event_groups = hooks[event_name]
+        for old_group, new_group in zip(
+            old_groups,
+            desired_groups[event_name],
+            strict=True,
+        ):
+            event_groups[event_groups.index(old_group)] = new_group
+    hooks_after = _json_document(hooks_document)
+    hooks_manifest["managed_groups"] = desired_groups
+    hooks_manifest["expected_groups"] = desired_groups
+    hooks_manifest["installed_sha256"] = _sha256(
+        _merge_hook_groups(
+            _snapshot_original_content(hooks_manifest),
+            desired_groups,
+        )
+    )
+    manifest_after = _json_document(manifest)
+    journal = _update_journal_document(
+        hooks_before,
+        hooks_mode,
+        hooks_after,
+        manifest_before,
+        manifest_mode,
+        manifest_after,
+    )
+    try:
+        _atomic_write(transaction_path, _json_document(journal), 0o600)
+        _guarded_replace(hooks_path, hooks_before, hooks_after, hooks_mode)
+        _guarded_replace(
+            manifest_path,
+            manifest_before,
+            manifest_after,
+            manifest_mode,
+        )
+    except (OSError, InstallationViolation) as error:
+        detail = f"installation update transaction failed: {error}"
+        try:
+            _recover_update_transaction(
+                codex_home,
+                journal,
+                manifest_path,
+                transaction_path,
+            )
+        except (OSError, InstallationViolation) as recovery_error:
+            detail += f"; update recovery failed: {recovery_error}"
+        raise InstallationViolation(detail) from error
+    try:
+        transaction_path.unlink()
+    except OSError as error:
+        raise InstallationViolation(
+            "installation update succeeded but its transaction journal could not "
+            f"be removed: {error}"
+        ) from error
 
 
 def install_user_config(
@@ -701,6 +953,13 @@ def _rollback_user_config_locked(codex_home: Path) -> RollbackResult:
         if not isinstance(transaction_document, dict):
             raise InstallationViolation("installation transaction journal is invalid")
         journal = cast(dict[str, object], transaction_document)
+        if journal.get("state") == "updating":
+            return _recover_update_transaction(
+                codex_home,
+                journal,
+                manifest_path,
+                transaction_path,
+            )
         if journal.get("state") == "rolling-back":
             return _resume_rollback_transaction(
                 codex_home,
@@ -729,7 +988,6 @@ def _rollback_user_config_locked(codex_home: Path) -> RollbackResult:
             manifest_path,
             transaction_path,
         )
-
     status = _installation_status_without_lock(codex_home)
     if status.state not in (InstallationState.INSTALLED, InstallationState.MODIFIED):
         detail = "; ".join(status.details) if status.details else status.state.value
@@ -773,6 +1031,32 @@ def _rollback_user_config_locked(codex_home: Path) -> RollbackResult:
         hooks_target,
         manifest_path,
         transaction_path,
+    )
+
+
+def _recover_update_transaction(
+    codex_home: Path,
+    journal: dict[str, object],
+    manifest_path: Path,
+    transaction_path: Path,
+) -> RollbackResult:
+    hooks_path = codex_home / "hooks.json"
+    hooks_target, manifest_target = _parse_update_recovery_targets(journal)
+    hooks_action = _update_recovery_action(hooks_path, hooks_target)
+    _update_recovery_action(manifest_path, manifest_target)
+    _apply_update_recovery_target(manifest_path, manifest_target)
+    _apply_update_recovery_target(hooks_path, hooks_target)
+    try:
+        transaction_path.unlink()
+    except OSError as error:
+        raise InstallationViolation(
+            "installation update recovery succeeded but its transaction journal "
+            f"could not be removed: {error}"
+        ) from error
+    return RollbackResult(
+        codex_home=codex_home,
+        config_action=RollbackFileAction.UNCHANGED,
+        hooks_action=hooks_action,
     )
 
 

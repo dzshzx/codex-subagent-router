@@ -12,13 +12,16 @@ from codex_subagent_router import (
     InstallationResult,
     InstallationState,
     InstallationStatus,
+    InstallationUpdatePlan,
     InstallationViolation,
     RollbackFileAction,
     RollbackResult,
     install_user_config,
     installation_status,
     plan_user_installation,
+    plan_user_update,
     rollback_user_config,
+    update_user_config,
 )
 
 
@@ -54,6 +57,161 @@ def test_empty_codex_home_plan_creates_managed_roles_and_hooks(
     )
     assert not (tmp_path / "config.toml").exists()
     assert not (tmp_path / "hooks.json").exists()
+
+
+def test_update_replaces_receipt_owned_hook_launchers(tmp_path: Path) -> None:
+    old_hook_executable = _hook_executable(tmp_path)
+    install_user_config(tmp_path, (str(old_hook_executable),))
+    new_hook_executable = tmp_path / "new-bin" / "codex-subagent-router-hook"
+    new_hook_executable.parent.mkdir()
+    new_hook_executable.write_text("#!/bin/sh\n")
+    new_hook_executable.chmod(0o755)
+
+    plan = plan_user_update(tmp_path, (str(new_hook_executable),))
+    update_user_config(tmp_path, (str(new_hook_executable),))
+
+    assert plan == InstallationUpdatePlan(
+        codex_home=tmp_path,
+        hooks_action=InstallationFileAction.UPDATE,
+        hook_events_to_update=("PreToolUse", "SessionStart", "SubagentStart"),
+        conflicts=(),
+        requires_hook_review=True,
+        requires_new_session=True,
+    )
+    hooks_document = json.loads((tmp_path / "hooks.json").read_text())
+    assert {
+        hook["command"]
+        for groups in hooks_document["hooks"].values()
+        for group in groups
+        for hook in group["hooks"]
+    } == {
+        f"{new_hook_executable} pre-tool-use",
+        f"{new_hook_executable} session-start",
+        f"{new_hook_executable} subagent-start",
+    }
+    assert installation_status(tmp_path) == InstallationStatus(
+        codex_home=tmp_path,
+        state=InstallationState.INSTALLED,
+        details=(),
+    )
+
+
+def test_update_repairs_a_missing_old_hook_launcher(tmp_path: Path) -> None:
+    old_hook_executable = _hook_executable(tmp_path)
+    install_user_config(tmp_path, (str(old_hook_executable),))
+    old_hook_executable.unlink()
+    new_hook_executable = tmp_path / "new-bin" / "codex-subagent-router-hook"
+    new_hook_executable.parent.mkdir()
+    new_hook_executable.write_text("#!/bin/sh\n")
+    new_hook_executable.chmod(0o755)
+
+    result = update_user_config(tmp_path, (str(new_hook_executable),))
+
+    assert result.requires_hook_review is True
+    assert result.requires_new_session is True
+    assert installation_status(tmp_path) == InstallationStatus(
+        codex_home=tmp_path,
+        state=InstallationState.INSTALLED,
+        details=(),
+    )
+
+
+def test_update_refuses_to_modify_an_adopted_hook_group(tmp_path: Path) -> None:
+    old_hook_executable = _hook_executable(tmp_path)
+    hooks_path = tmp_path / "hooks.json"
+    hooks_path.write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "PreToolUse": [
+                        {
+                            "matcher": "^(Agent|.*spawn_agent.*)$",
+                            "hooks": [
+                                {
+                                    "type": "command",
+                                    "command": (f"{old_hook_executable} pre-tool-use"),
+                                    "timeout": 10,
+                                }
+                            ],
+                        }
+                    ]
+                }
+            },
+            indent=2,
+        )
+        + "\n"
+    )
+    install_user_config(tmp_path, (str(old_hook_executable),))
+    hooks_before = hooks_path.read_bytes()
+    new_hook_executable = tmp_path / "new-bin" / "codex-subagent-router-hook"
+    new_hook_executable.parent.mkdir()
+    new_hook_executable.write_text("#!/bin/sh\n")
+    new_hook_executable.chmod(0o755)
+
+    plan = plan_user_update(tmp_path, (str(new_hook_executable),))
+
+    assert plan.conflicts == (
+        "Hook launcher update would modify user-owned compatible hook groups",
+    )
+    with pytest.raises(
+        InstallationViolation,
+        match="user-owned compatible hook groups",
+    ):
+        update_user_config(tmp_path, (str(new_hook_executable),))
+    assert hooks_path.read_bytes() == hooks_before
+
+
+def test_update_with_the_current_launcher_is_idempotent(tmp_path: Path) -> None:
+    hook_executable = _hook_executable(tmp_path)
+    installed = install_user_config(tmp_path, (str(hook_executable),))
+    config_before = installed.config_path.read_bytes()
+    hooks_before = installed.hooks_path.read_bytes()
+    manifest_before = installed.manifest_path.read_bytes()
+
+    plan = plan_user_update(tmp_path, (str(hook_executable),))
+    result = update_user_config(tmp_path, (str(hook_executable),))
+
+    assert plan == InstallationUpdatePlan(
+        codex_home=tmp_path,
+        hooks_action=InstallationFileAction.UNCHANGED,
+        hook_events_to_update=(),
+        conflicts=(),
+        requires_hook_review=False,
+        requires_new_session=False,
+    )
+    assert result.requires_hook_review is False
+    assert result.requires_new_session is False
+    assert installed.config_path.read_bytes() == config_before
+    assert installed.hooks_path.read_bytes() == hooks_before
+    assert installed.manifest_path.read_bytes() == manifest_before
+
+
+def test_update_preserves_unrelated_hooks_added_after_installation(
+    tmp_path: Path,
+) -> None:
+    old_hook_executable = _hook_executable(tmp_path)
+    installed = install_user_config(tmp_path, (str(old_hook_executable),))
+    hooks_document = json.loads(installed.hooks_path.read_text())
+    hooks_document["hooks"]["Stop"] = [{"matcher": "user-owned", "hooks": []}]
+    installed.hooks_path.write_text(json.dumps(hooks_document, indent=2) + "\n")
+    new_hook_executable = tmp_path / "new-bin" / "codex-subagent-router-hook"
+    new_hook_executable.parent.mkdir()
+    new_hook_executable.write_text("#!/bin/sh\n")
+    new_hook_executable.chmod(0o755)
+
+    update_user_config(tmp_path, (str(new_hook_executable),))
+
+    updated_document = json.loads(installed.hooks_path.read_text())
+    assert updated_document["hooks"]["Stop"] == [{"matcher": "user-owned", "hooks": []}]
+    assert installation_status(tmp_path) == InstallationStatus(
+        codex_home=tmp_path,
+        state=InstallationState.INSTALLED,
+        details=(),
+    )
+    rollback_user_config(tmp_path)
+    assert json.loads(installed.hooks_path.read_text()) == {
+        "hooks": {"Stop": [{"matcher": "user-owned", "hooks": []}]}
+    }
 
 
 def test_plan_preserves_existing_compatible_roles_and_unrelated_hooks(

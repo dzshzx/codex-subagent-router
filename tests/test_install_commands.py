@@ -135,3 +135,66 @@ def test_cli_install_status_and_rollback_use_the_transaction_api(
     }
     assert not (tmp_path / "config.toml").exists()
     assert not (tmp_path / "hooks.json").exists()
+
+
+def test_cli_plans_and_applies_a_user_level_hook_launcher_update(
+    tmp_path: Path,
+) -> None:
+    old_hook_executable = _hook_executable(tmp_path)
+    common = ("--codex-home", str(tmp_path))
+    install = _run_cli(
+        "install",
+        *common,
+        "--hook-executable",
+        str(old_hook_executable),
+    )
+    assert install.returncode == 0
+    new_hook_executable = tmp_path / "new-bin" / "codex-subagent-router-hook"
+    new_hook_executable.parent.mkdir()
+    new_hook_executable.write_text("#!/bin/sh\n")
+    new_hook_executable.chmod(0o755)
+    hooks_before = (tmp_path / "hooks.json").read_bytes()
+    manifest_before = (
+        tmp_path / "codex-subagent-router" / "installation.json"
+    ).read_bytes()
+
+    plan = _run_cli(
+        "update",
+        *common,
+        "--hook-executable",
+        str(new_hook_executable),
+        "--dry-run",
+    )
+    assert (tmp_path / "hooks.json").read_bytes() == hooks_before
+    assert (
+        tmp_path / "codex-subagent-router" / "installation.json"
+    ).read_bytes() == manifest_before
+    update = _run_cli(
+        "update",
+        *common,
+        "--hook-executable",
+        str(new_hook_executable),
+    )
+
+    assert plan.returncode == 0
+    assert json.loads(plan.stdout) == {
+        "codex_home": str(tmp_path),
+        "hooks_action": "update",
+        "hook_events_to_update": [
+            "PreToolUse",
+            "SessionStart",
+            "SubagentStart",
+        ],
+        "conflicts": [],
+        "requires_hook_review": True,
+        "requires_new_session": True,
+    }
+    assert update.returncode == 0
+    assert json.loads(update.stdout) == {
+        "codex_home": str(tmp_path),
+        "config_path": str(tmp_path / "config.toml"),
+        "hooks_path": str(tmp_path / "hooks.json"),
+        "manifest_path": str(tmp_path / "codex-subagent-router" / "installation.json"),
+        "requires_hook_review": True,
+        "requires_new_session": True,
+    }

@@ -11,13 +11,16 @@ from .installation import (
     InstallationResult,
     InstallationState,
     InstallationStatus,
+    InstallationUpdatePlan,
     InstallationViolation,
     RollbackFileAction,
     RollbackResult,
     install_user_config,
     installation_status,
     plan_user_installation,
+    plan_user_update,
     rollback_user_config,
+    update_user_config,
 )
 from .policy import (
     PolicyViolation,
@@ -61,6 +64,7 @@ __all__ = (
     "InstallationResult",
     "InstallationState",
     "InstallationStatus",
+    "InstallationUpdatePlan",
     "InstallationViolation",
     "RollbackFileAction",
     "RollbackResult",
@@ -73,6 +77,7 @@ __all__ = (
     "installation_status",
     "parse_hook_input",
     "plan_user_installation",
+    "plan_user_update",
     "role_contracts",
     "rollback_user_config",
     "routine_routes",
@@ -80,4 +85,5 @@ __all__ = (
     "subagent_start_context",
     "validate_child_effort",
     "validate_pre_tool_use",
+    "update_user_config",
 )

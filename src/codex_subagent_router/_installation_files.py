@@ -264,6 +264,11 @@ def _original_snapshot_content(snapshot: dict[str, object]) -> bytes:
     return base64.b64decode(cast(str, encoded), validate=True)
 
 
+def snapshot_original_content(snapshot: dict[str, object]) -> bytes:
+    """Return the immutable pre-install content recorded by one file snapshot."""
+    return _original_snapshot_content(snapshot)
+
+
 def _hook_group_map_is_valid(value: object) -> bool:
     if not isinstance(value, dict):
         return False

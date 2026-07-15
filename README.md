@@ -11,11 +11,12 @@ The repository currently provides the policy seam; strict JSON value
 types for the `PreToolUse`, `SessionStart`, and `SubagentStart` hook boundaries;
 and deny-only validation for routed `spawn_agent` calls. Root-session routing
 guidance, managed subagent role-context handlers, and executable JSON command
-adapters are also available. Explicit user-level installation, status, safe
-rollback, and their command-line entry points are implemented. The complete
-installation lifecycle and the explicit V2 configuration each have recorded
-isolated Codex CLI evidence; see [Codex compatibility](#codex-compatibility)
-for the exact scope and the remaining real-backend boundary.
+adapters are also available. Explicit user-level installation, owned
+Hook-launcher updates, status, safe rollback, and their command-line entry
+points are implemented. The generated installation lifecycle and the explicit
+V2 configuration each have recorded isolated Codex CLI evidence; see
+[Codex compatibility](#codex-compatibility) for the exact scope and the
+remaining real-backend boundary.
 
 ## Technology
 
@@ -297,11 +298,11 @@ empty `details` array. A completed status query exits `0` for every reported
 state, including `not-installed`, `modified`, and `incomplete`; automation must
 inspect `state` instead of treating exit `0` as proof of a healthy installation.
 
-Successful operations and modeled `plan` conflicts write machine-readable JSON
-to stdout. A plan with conflicts exits `1`. Usage errors exit `2` with text on
-stderr. Failures raised before planning, and installation or rollback
-violations, exit `1` with text on stderr; callers must not assume that every
-nonzero result contains JSON.
+Successful operations and modeled `plan` or `update --dry-run` conflicts write
+machine-readable JSON to stdout. A plan with conflicts exits `1`. Usage errors
+exit `2` with text on stderr. Failures raised before planning, and installation,
+update, or rollback violations, exit `1` with text on stderr; callers must not
+assume that every nonzero result contains JSON.
 
 The installer adds this V2 table and description-only declarations for the four
 managed roles to `config.toml`, adds the three command-hook groups to
@@ -321,6 +322,36 @@ recoverable. Configuration files and state paths that are symbolic links are
 rejected. Compatible entries that already exist are verified but are not
 claimed as installer-owned; partial or conflicting V2 settings and the
 V2-incompatible `agents.max_threads` setting fail closed.
+
+### Update the user-level Hook launcher
+
+After upgrading or relocating the persistent package environment, plan the
+user-level launcher update before applying it:
+
+```bash
+codex-subagent-router update --dry-run --codex-home "$CODEX_HOME"
+codex-subagent-router update --codex-home "$CODEX_HOME"
+```
+
+The dry run is read-only and reports `hooks_action`,
+`hook_events_to_update`, and `conflicts`. The first update implementation is
+deliberately narrow: it only replaces the command path in Hook groups that the
+installation receipt proves were created by this installer. It does not
+modify `config.toml`, MultiAgent V2 settings, managed role declarations,
+standalone agent files, Hook matchers, timeouts, or user-owned compatible Hook
+groups. A broader Hook specification change requires an explicit future
+migration instead of being silently adopted.
+
+The old launcher may already be missing, provided the receipt and managed Hook
+groups are otherwise healthy and the new launcher is an absolute regular
+executable file. Unrelated Hooks added after installation are preserved. The
+update keeps the first installation's original bytes and modes as the permanent
+rollback baseline, so a later rollback still restores the state from before
+the router was first installed.
+
+An interrupted update leaves a recoverable journal. Running `rollback` first
+restores the previous complete installed state; run `rollback` again only when
+you also intend to remove the router-managed configuration.
 
 ### Review Hook trust and start a fresh session
 
@@ -389,12 +420,19 @@ explicit; importing the package never reads user configuration:
 ```python
 from pathlib import Path
 
-from codex_subagent_router import install_user_config, plan_user_installation
+from codex_subagent_router import (
+    install_user_config,
+    plan_user_installation,
+    plan_user_update,
+    update_user_config,
+)
 
 codex_home = Path("/explicit/codex/home")
 hook_command = ("/absolute/path/to/codex-subagent-router-hook",)
 plan = plan_user_installation(codex_home, hook_command)
 result = install_user_config(codex_home, hook_command)
+update_plan = plan_user_update(codex_home, hook_command)
+updated = update_user_config(codex_home, hook_command)
 ```
 
 Policy rationale and protocol evidence are documented in
