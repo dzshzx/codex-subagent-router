@@ -17,3 +17,11 @@
 `$CODEX_HOME/agents/` 已存在与四个 managed role 同名、固定 compute 的
 standalone agent。实际用户安装恢复为 NO-GO，直到 issue 10 的版本探针
 与 issue 11 的 standalone-agent preflight 完成。
+
+## 2026-07-15 release-gate result
+
+Issue 10 和 11 已解决。产品选择 Hook-managed 模式：description-only inline
+role 与三个 Hook 是 managed role 的唯一来源；同名 custom-agent 文件属于
+互斥配置。安装器递归拒绝 user Codex home 中的四个保留名，本机原文件已
+可恢复地改名为 `*.toml.disabled`，plan 返回零冲突。Codex `0.144.4` 已按
+这个 stable-path 边界加入兼容表；V2 preview 仍不属于默认支持面。

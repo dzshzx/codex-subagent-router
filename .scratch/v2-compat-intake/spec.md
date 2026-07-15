@@ -30,9 +30,9 @@ docs/research/codex-0.144.3-hook-evidence.md 的先例）。
 |---|---|---|
 | 01 | hide_spawn_agent_metadata 运行前提未校验 | needs-triage |
 | 02 | tool_namespace 保留名冲突未校验 | needs-triage |
-| 03 | [agents.<role>] 与显式 multi_agent_v2 共存性未验证 | ready-for-agent |
+| 03 | [agents.<role>] 与显式 multi_agent_v2 共存性未验证 | resolved |
 | 04 | 评估 luna/low 作为探索型负载低档 | ready-for-human |
-| 05 | ADR 记录禁 ultra 的机制层理据 | ready-for-agent |
+| 05 | ADR 记录禁 ultra 的机制层理据 | resolved |
 | 06 | 派发后行为纪律不纳入 hook guidance | wontfix |
 
 2026-07-15 本机 `0.144.4` 证据已追加到 issue 01–03。完整版本 release gate

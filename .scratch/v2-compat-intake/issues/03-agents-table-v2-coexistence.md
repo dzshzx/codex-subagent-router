@@ -1,6 +1,29 @@
 # 安装器写入的 [agents.<role>] 表与显式启用 features.multi_agent_v2 的共存性未验证
 
-Status: ready-for-agent
+Status: resolved
+
+## Answer
+
+0.144.4 installed-binary 隔离探针给出两层结论：
+
+1. `[agents.<role>]` 与显式 `multi_agent_v2` 在配置层可以共存，Codex 能
+   启动，未触发 `agents.max_threads` 那类冲突。
+2. 默认 V2 会隐藏 `agent_type`、`model`、`reasoning_effort`，实际广告的
+   `collaboration.spawn_agent` 只有 `task_name`、`message`、`fork_turns`；
+   本项目因此正确地 fail closed，而不是可用地完成路由。
+
+在 disposable home 中显式设置
+`features.multi_agent_v2.hide_spawn_agent_metadata = false` 与
+`tool_namespace = "agents"` 后，工具 schema 恢复路由字段，Hook 看到
+`agentsspawn_agent`，合法 reviewer child 保留 `gpt-5.6-terra / medium`
+并在首个请求前收到 managed contract；`ultra` 与 `fork_turns="all"` 均被
+创建前拒绝。
+
+role precedence 也按发布版行为实测：同一用户层 inline role 先加载，
+同名 standalone 被报 duplicate 并跳过；standalone-only 则固定自身
+model/effort 且不产生 `SubagentStart`。因此“配置共存”已验证，但
+standalone 不是 managed role 的第二配置源；本项目明确选择 Hook-managed
+模式并把四个 managed names 视为 custom-agent 保留名。
 
 本项目安装器把 managed role 声明写进 config.toml 的 `[agents.<role>]` 表
 （plan 侧检查见 src/codex_subagent_router/installation.py:198-221，receipt
@@ -37,7 +60,7 @@ managed role 合同注入，但 config 里没有显式 `[features.multi_agent_v2
 compute 分离。当前 installer plan 仍返回空 `conflicts`，因为它只检查
 `config.toml` 和 `hooks.json`。
 
-本票保持 runtime 共存性探针的范围与 `ready-for-agent` 状态。探针矩阵扩充为：
+本票当时保持 runtime 共存性探针的范围与 `ready-for-agent` 状态。探针矩阵扩充为：
 
 1. 默认 stable toolset + 仅 `[agents.<role>]`。
 2. 显式 MultiAgent V2 + 仅 `[agents.<role>]`。

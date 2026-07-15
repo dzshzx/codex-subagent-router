@@ -1,6 +1,15 @@
 # ADR 记录禁 ultra 的机制层理据
 
-Status: ready-for-agent
+Status: resolved
+
+## Answer
+
+新增 `docs/adr/0004-prohibit-ultra-child-effort.md`：明确 child `ultra` 是
+router 自身的 deny-only 策略，禁止静默改写为 `max`；理由聚焦其编排放大
+语义与 bounded child task 的职责冲突。ADR 以官方 `rust-v0.144.4` 源码中
+Ultra→Max 请求映射和 proactive multi-agent mode 选择为机制证据，同时区分
+社区帖未经官方承诺的具体 prompt/juice 细节，以及 installed-binary 探针只能
+证明本项目 deny 行为的证据边界。
 
 帖子拆解了 ultra 的实现：它不是独立思考档，而是「max 档 juice（帖称 960，
 与 max 相同）+ 一段多代理编排提示词」的脚手架开关（首帖 + 楼主 24 楼补充）。

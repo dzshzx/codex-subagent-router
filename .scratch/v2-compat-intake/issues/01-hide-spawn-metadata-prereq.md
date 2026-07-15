@@ -35,3 +35,11 @@ hide=true 的 schema 症状一致（不带任何路由字段）。全仓 rg 无
 `codex features list` 报告 `multi_agent_v2` 仍为关闭。这证明本机已预置
 票中候选的运行参数，但不证明默认值、V2 开启后 schema 或自然调用形状；
 本票仍保持 `needs-triage`。
+
+2026-07-15 installed-binary loopback 探针已确认：在 disposable home 仅启用
+`multi_agent_v2` 时，实际工具 schema 只有 `task_name`、`message`、
+`fork_turns`，Hook 收到的自然输入缺少三项路由字段并以
+`missing required spawn_agent fields` 拒绝。设置
+`hide_spawn_agent_metadata = false` 后三项字段恢复，合法 routed spawn
+成功。因此该键确为 V2 显式路由的硬前提；如何落入 installer preflight、
+status 或仅 runbook 的产品决策仍待 maintainer triage。

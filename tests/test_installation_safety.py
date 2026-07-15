@@ -1,5 +1,6 @@
 import base64
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -59,6 +60,173 @@ def test_plan_refuses_non_file_configuration_targets(
     assert actual.conflicts == (f"{file_name} must be a regular file",)
     assert actual.config_action is InstallationFileAction.UNCHANGED
     assert actual.hooks_action is InstallationFileAction.UNCHANGED
+
+
+def test_plan_refuses_a_symlinked_standalone_agent(tmp_path: Path) -> None:
+    external = tmp_path / "external-agent.toml"
+    external.write_text(
+        'name = "user_owned"\n'
+        'description = "Unmanaged agent"\n'
+        'developer_instructions = "Stay outside the installer."\n'
+    )
+    agents_directory = tmp_path / "agents"
+    agents_directory.mkdir()
+    standalone_agent = agents_directory / "linked.toml"
+    standalone_agent.symlink_to(external)
+
+    actual = plan_user_installation(
+        tmp_path,
+        (str(tmp_path / "bin" / "codex-subagent-router-hook"),),
+    )
+
+    assert actual.conflicts == (
+        "standalone agent file 'agents/linked.toml' must not be a symbolic link",
+    )
+    assert actual.config_action is InstallationFileAction.UNCHANGED
+    assert actual.hooks_action is InstallationFileAction.UNCHANGED
+    assert standalone_agent.is_symlink()
+    assert external.read_text().startswith('name = "user_owned"')
+
+
+def test_plan_refuses_a_symlinked_standalone_agent_directory(
+    tmp_path: Path,
+) -> None:
+    external = tmp_path / "external-agents"
+    external.mkdir()
+    agents_directory = tmp_path / "agents"
+    agents_directory.symlink_to(external, target_is_directory=True)
+
+    actual = plan_user_installation(
+        tmp_path,
+        (str(tmp_path / "bin" / "codex-subagent-router-hook"),),
+    )
+
+    assert actual.conflicts == (
+        "standalone agent directory 'agents' must not be a symbolic link",
+    )
+    assert actual.config_action is InstallationFileAction.UNCHANGED
+    assert actual.hooks_action is InstallationFileAction.UNCHANGED
+    assert agents_directory.is_symlink()
+    assert list(external.iterdir()) == []
+
+
+def test_plan_refuses_a_non_directory_standalone_agent_path(
+    tmp_path: Path,
+) -> None:
+    agents_path = tmp_path / "agents"
+    agents_path.write_text("user content\n")
+
+    actual = plan_user_installation(
+        tmp_path,
+        (str(tmp_path / "bin" / "codex-subagent-router-hook"),),
+    )
+
+    assert actual.conflicts == (
+        "standalone agent directory 'agents' must be a directory",
+    )
+    assert actual.config_action is InstallationFileAction.UNCHANGED
+    assert actual.hooks_action is InstallationFileAction.UNCHANGED
+    assert agents_path.read_text() == "user content\n"
+
+
+def test_plan_refuses_a_non_file_standalone_agent(tmp_path: Path) -> None:
+    standalone_agent = tmp_path / "agents" / "nested.toml"
+    standalone_agent.mkdir(parents=True)
+
+    actual = plan_user_installation(
+        tmp_path,
+        (str(tmp_path / "bin" / "codex-subagent-router-hook"),),
+    )
+
+    assert actual.conflicts == (
+        "standalone agent file 'agents/nested.toml' must be a regular file",
+    )
+    assert actual.config_action is InstallationFileAction.UNCHANGED
+    assert actual.hooks_action is InstallationFileAction.UNCHANGED
+    assert standalone_agent.is_dir()
+
+
+def test_plan_reports_an_unreadable_standalone_agent(tmp_path: Path) -> None:
+    standalone_agent = tmp_path / "agents" / "unreadable.toml"
+    standalone_agent.parent.mkdir()
+    standalone_agent.write_text(
+        'name = "user_owned"\n'
+        'description = "Unmanaged agent"\n'
+        'developer_instructions = "Remain user owned."\n'
+    )
+    standalone_agent.chmod(0o000)
+    if os.access(standalone_agent, os.R_OK):
+        pytest.skip("the platform cannot make this test file unreadable")
+
+    try:
+        actual = plan_user_installation(
+            tmp_path,
+            (str(tmp_path / "bin" / "codex-subagent-router-hook"),),
+        )
+    finally:
+        standalone_agent.chmod(0o600)
+
+    assert actual.conflicts == (
+        "standalone agent file 'agents/unreadable.toml' could not be read",
+    )
+    assert actual.config_action is InstallationFileAction.UNCHANGED
+    assert actual.hooks_action is InstallationFileAction.UNCHANGED
+
+
+def test_plan_reports_an_unreadable_nested_standalone_agent_directory(
+    tmp_path: Path,
+) -> None:
+    agents_directory = tmp_path / "agents" / "team"
+    agents_directory.mkdir(parents=True)
+    agents_directory.chmod(0o000)
+    if os.access(agents_directory, os.R_OK | os.X_OK):
+        pytest.skip("the platform cannot make this test directory unreadable")
+
+    try:
+        actual = plan_user_installation(
+            tmp_path,
+            (str(tmp_path / "bin" / "codex-subagent-router-hook"),),
+        )
+    finally:
+        agents_directory.chmod(0o700)
+
+    assert actual.conflicts == (
+        "standalone agent directory 'agents/team' could not be read",
+    )
+    assert actual.config_action is InstallationFileAction.UNCHANGED
+    assert actual.hooks_action is InstallationFileAction.UNCHANGED
+
+
+def test_install_rechecks_standalone_agents_before_writing(tmp_path: Path) -> None:
+    hook_executable = _hook_executable(tmp_path)
+    clean_plan = plan_user_installation(tmp_path, (str(hook_executable),))
+    assert clean_plan.conflicts == ()
+
+    standalone_agent = tmp_path / "agents" / "custom-review.toml"
+    standalone_agent.parent.mkdir()
+    standalone_document = (
+        b'name = "reviewer"\n'
+        b'description = "User-owned reviewer"\n'
+        b'developer_instructions = "Review independently."\n'
+    )
+    standalone_agent.write_bytes(standalone_document)
+    standalone_agent.chmod(0o640)
+
+    with pytest.raises(
+        InstallationViolation,
+        match=(
+            "standalone agent file 'agents/custom-review.toml' declares managed "
+            "role 'reviewer'"
+        ),
+    ):
+        install_user_config(tmp_path, (str(hook_executable),))
+
+    assert standalone_agent.read_bytes() == standalone_document
+    assert standalone_agent.stat().st_mode & 0o7777 == 0o640
+    assert not (tmp_path / "config.toml").exists()
+    assert not (tmp_path / "hooks.json").exists()
+    assert not (tmp_path / "codex-subagent-router" / "installation.json").exists()
+    assert not (tmp_path / "codex-subagent-router" / "transaction.json").exists()
 
 
 def test_install_refuses_a_symlinked_installation_directory(

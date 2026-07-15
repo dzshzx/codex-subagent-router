@@ -32,3 +32,11 @@ Status: needs-triage
 `features.multi_agent_v2.tool_namespace = "agents"`，但 `multi_agent_v2` feature
 本身仍关闭。因此这是待验证组合的一个部署样本，不能代替开启 V2
 后的 installed-binary 探针；本票仍保持 `needs-triage`。
+
+2026-07-15 installed-binary loopback 探针确认了客户端与 Hook 两侧形状：
+默认 V2 namespace 为 `collaboration`，Hook `tool_name` 为
+`collaborationspawn_agent`；配置 `tool_namespace = "agents"` 后，工具以
+`agents.spawn_agent` 广告，Hook `tool_name` 为 `agentsspawn_agent`，并能
+完成带显式 model/effort/role 的 child。loopback provider 不实现 OpenAI
+后端的 reserved-tool 校验，因此 #31864 所述服务端冲突本身仍未被本探针
+证明，issue 保持 `needs-triage`。

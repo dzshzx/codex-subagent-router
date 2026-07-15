@@ -41,6 +41,16 @@ minimum version, or a claim about unlisted releases.
 |---|---|---|
 | `0.144.1` | Strict hook protocol, command adapters, generated user installation, and fresh-session role/Hook discovery | [`docs/research/codex-0.144.1-hook-evidence.md`](https://github.com/dzshzx/codex-subagent-router/blob/HEAD/docs/research/codex-0.144.1-hook-evidence.md) |
 | `0.144.3` | Root guidance, deny-before-creation, managed role context, fail-open behavior, generated installation, status, rollback, and both spawn shapes of the capability seam against the shipped stable toolset | [`docs/research/codex-0.144.3-hook-evidence.md`](https://github.com/dzshzx/codex-subagent-router/blob/HEAD/docs/research/codex-0.144.3-hook-evidence.md) |
+| `0.144.4` | Hook-managed stable path: root guidance, deny-before-creation, managed role context, trust and fail-open behavior, generated installation, status, rollback, and custom-agent exclusion | [`docs/research/codex-0.144.4-hook-evidence.md`](https://github.com/dzshzx/codex-subagent-router/blob/HEAD/docs/research/codex-0.144.4-hook-evidence.md) |
+
+Router-managed roles use one definition mode: description-only inline role
+declarations plus the generated Hooks. Standalone custom-agent files are an
+alternative mode, not an additional source for the same role. Do not declare
+`researcher`, `reviewer`, `architecture_explorer`, or `interface_designer` in
+any active user or project `agents` directory while using this router. The
+installer recursively rejects those names under the explicit user Codex home;
+project-layer collisions are an explicitly unsupported configuration because a
+user-level installation cannot enumerate every project.
 
 The `0.144.3` probe used package version `0.1.2`. Version `0.1.3` changed only
 branch-agnostic documentation links. Version `0.1.4` retains the same generated
@@ -57,10 +67,13 @@ reading alone.
 
 Codex ships two multi-agent tool generations: stable `multi_agent`
 (MultiAgent V1) is enabled by default, while `multi_agent_v2` is a separately
-enabled, under-development preview. Both generations register the same
-`spawn_agent` hook tool name, so the validator supports both input shapes
-through one capability seam and normal spawns work on a default V1
-installation without enabling the preview.
+enabled, under-development preview. Hook-visible V2 names can be canonical or
+namespace-flattened, so the validator accepts the released variants through
+one capability seam. Normal supported use stays on default V1 and does not
+require the preview. On installed `0.144.4`, default V2 hides the explicit
+routing fields and therefore fails closed; the loopback probe routed only with
+`hide_spawn_agent_metadata = false` and `tool_namespace = "agents"`. That V2
+probe is recorded as preview evidence, not as real-backend compatibility.
 
 Unlisted Codex versions are unverified. The protocol boundary is deliberately
 strict, while Codex command-hook failures are fail-open; an upstream schema or

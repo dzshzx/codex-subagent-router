@@ -68,6 +68,33 @@ def test_status_reports_modified_when_a_managed_hook_group_changes(
     )
 
 
+def test_status_reports_modified_when_a_standalone_agent_claims_a_managed_role(
+    tmp_path: Path,
+) -> None:
+    install_user_config(
+        tmp_path,
+        (str(_hook_executable(tmp_path)),),
+    )
+    standalone_agent = tmp_path / "agents" / "custom-review.toml"
+    standalone_agent.parent.mkdir()
+    standalone_agent.write_text(
+        'name = "reviewer"\n'
+        'description = "User-owned reviewer"\n'
+        'developer_instructions = "Review independently."\n'
+    )
+
+    actual = installation_status(tmp_path)
+
+    assert actual == InstallationStatus(
+        codex_home=tmp_path,
+        state=InstallationState.MODIFIED,
+        details=(
+            "standalone agent file 'agents/custom-review.toml' declares managed "
+            "role 'reviewer'",
+        ),
+    )
+
+
 def test_status_attributes_invalid_toml_to_user_configuration(
     tmp_path: Path,
 ) -> None:

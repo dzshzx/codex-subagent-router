@@ -5,6 +5,9 @@ import tomllib
 from pathlib import Path
 from typing import cast
 
+from ._installation_agents import (
+    standalone_agent_issues as _standalone_agent_issues,
+)
 from ._installation_files import (
     atomic_write as _atomic_write,
 )
@@ -144,6 +147,13 @@ def plan_user_installation(
     violation = _first_target_violation(config_path, hooks_path)
     if violation is not None:
         return _blocked_plan(codex_home, violation)
+    standalone_issues = _standalone_agent_issues(codex_home)
+    if standalone_issues:
+        return _blocked_plan(
+            codex_home,
+            standalone_issues[0],
+            *standalone_issues[1:],
+        )
     plan = _plan_from_snapshots(
         codex_home,
         hook_command,
@@ -288,14 +298,18 @@ def _plan_from_snapshots(
     )
 
 
-def _blocked_plan(codex_home: Path, conflict: str) -> InstallationPlan:
+def _blocked_plan(
+    codex_home: Path,
+    conflict: str,
+    *additional_conflicts: str,
+) -> InstallationPlan:
     return InstallationPlan(
         codex_home=codex_home,
         config_action=InstallationFileAction.UNCHANGED,
         hooks_action=InstallationFileAction.UNCHANGED,
         roles_to_add=(),
         hook_events_to_add=(),
-        conflicts=(conflict,),
+        conflicts=(conflict, *additional_conflicts),
         requires_hook_review=True,
         requires_new_session=True,
     )
@@ -332,6 +346,9 @@ def _install_user_config_locked(
             raise InstallationViolation(
                 f"existing installation state is not healthy: {detail}"
             )
+    standalone_issues = _standalone_agent_issues(codex_home)
+    if standalone_issues:
+        raise InstallationViolation("; ".join(standalone_issues))
     config_path = codex_home / "config.toml"
     hooks_path = codex_home / "hooks.json"
     target_violation = _first_target_violation(config_path, hooks_path)
@@ -522,7 +539,17 @@ def installation_status(codex_home: Path) -> InstallationStatus:
             state=InstallationState.INCOMPLETE,
             details=("installation operation is in progress",),
         )
-    return _installation_status_without_lock(codex_home)
+    status = _installation_status_without_lock(codex_home)
+    if status.state not in (InstallationState.INSTALLED, InstallationState.MODIFIED):
+        return status
+    standalone_issues = _standalone_agent_issues(codex_home)
+    if not standalone_issues:
+        return status
+    return InstallationStatus(
+        codex_home=codex_home,
+        state=InstallationState.MODIFIED,
+        details=(*status.details, *standalone_issues),
+    )
 
 
 def _installation_status_without_lock(codex_home: Path) -> InstallationStatus:

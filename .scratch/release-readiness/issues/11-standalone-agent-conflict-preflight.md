@@ -3,7 +3,21 @@
 # Installer plan/status ignores same-name standalone managed agents
 
 Category: bug
-Status: ready-for-agent
+Status: resolved
+
+## Answer
+
+新增私有 standalone-agent preflight，以 `roles.py` 的 role contracts 为唯一
+managed-name 来源。plan 与锁内 install 在任何事务写入前递归扫描显式 Codex
+home 的 `agents` 目录；public status 把安装后出现的冲突报告为 `modified`，而
+rollback 继续只拥有并处理 `config.toml`、`hooks.json` 与事务状态。
+
+检查以 TOML 的必填 `name` 为身份事实源，不依赖文件名；同名 managed role、
+无效或不可读 TOML、不可判定 name、symlink、非普通文件及不安全目录均
+fail closed。unmanaged standalone agent 保持 bytes/mode 不变。公共 API 测试
+覆盖递归发现、停用扩展名、plan、install-time recheck、status drift 和
+rollback preservation。产品模式固定为 Hook-managed；四个 managed names
+不能同时出现在 active custom-agent 定义中。
 
 本机复现：`$CODEX_HOME/agents/` 中已有 `researcher`、`reviewer`、
 `architecture_explorer` 和 `interface_designer` 四个 standalone agent，
