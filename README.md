@@ -64,7 +64,7 @@ branch-agnostic documentation links. Version `0.1.4` retains the same generated
 Hook configuration and runtime contracts while rejecting relative explicit
 launcher paths earlier at the CLI boundary. These packaging and preflight
 changes do not extend the Codex-version compatibility claim beyond the recorded
-probe. Version `0.2.0` adds user-level update, doctor, and uninstall lifecycle
+probe. Version `0.1.5` adds user-level update, doctor, and uninstall lifecycle
 surfaces without changing the generated Hook protocol or expanding the recorded
 Codex-version compatibility claim.
 

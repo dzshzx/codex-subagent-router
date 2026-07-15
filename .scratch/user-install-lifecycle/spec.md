@@ -20,7 +20,8 @@ interface。第一批新增：
   用户安装健康度、用户 standalone agents 与一个显式项目的 `.codex/agents`；
 - CLI `uninstall`：`rollback` 的用户友好别名，复用同一恢复事务；
 - 隔离 `$CODEX_HOME` 的 `plan → install → update → doctor → uninstall` E2E。
-- 发布版本提升为 `0.2.0`，但不扩大已记录的 Codex CLI 兼容性声明。
+- 发布版本按 patch 级别提升为 `0.1.5`，但不扩大已记录的 Codex CLI
+  兼容性声明。
 
 所有安装调用继续要求显式 `codex_home`。项目目录不是安装目标，安装器不得写入
 项目 `.codex/`、`.agents/` 或 `AGENTS.md`。
