@@ -24,10 +24,16 @@ from ._installation_files import (
     installation_lock as _installation_lock,
 )
 from ._installation_files import (
+    installation_manifest_has_supported_schema as _installation_manifest_has_supported_schema,
+)
+from ._installation_files import (
     installation_manifest_is_valid as _installation_manifest_is_valid,
 )
 from ._installation_files import (
     installation_modifications as _installation_modifications,
+)
+from ._installation_files import (
+    installation_modifications_allow_rollback as _installation_modifications_allow_rollback,
 )
 from ._installation_files import (
     installation_state_path_violation as _installation_state_path_violation,
@@ -104,9 +110,6 @@ from ._installation_types import (
 )
 from ._installation_types import RollbackFileAction as RollbackFileAction
 from ._installation_types import RollbackResult as RollbackResult
-from ._installation_v2 import (
-    MULTI_AGENT_V2_MODIFICATION_DETAIL as _MULTI_AGENT_V2_MODIFICATION_DETAIL,
-)
 from ._installation_v2 import (
     inspect_multi_agent_v2_configuration as _inspect_multi_agent_v2_configuration,
 )
@@ -619,12 +622,10 @@ def _installation_status_without_lock(codex_home: Path) -> InstallationStatus:
         )
     try:
         manifest_document = json.loads(manifest_path.read_text(encoding="utf-8"))
-        if (
-            not isinstance(manifest_document, dict)
-            or type(manifest_document.get("schema_version")) is not int
-            or manifest_document.get("schema_version") not in (1, 2)
-        ):
-            raise TypeError("unsupported installation manifest schema")
+        if not isinstance(
+            manifest_document, dict
+        ) or not _installation_manifest_has_supported_schema(manifest_document):
+            raise TypeError("installation manifest is unsupported")
         manifest = cast(dict[str, object], manifest_document)
         if manifest.get("state") != "installed":
             return InstallationStatus(
@@ -726,16 +727,13 @@ def _rollback_user_config_locked(codex_home: Path) -> RollbackResult:
         json.loads(manifest_path.read_text(encoding="utf-8")),
     )
     config_manifest = cast(dict[str, object], manifest["config"])
-    user_owned_v2_is_the_only_modification = (
+    modifications_allow_rollback = (
         status.state is InstallationState.MODIFIED
-        and manifest.get("schema_version") == 2
-        and config_manifest.get("managed_multi_agent_v2") is False
-        and _installation_modifications(codex_home, manifest)
-        == [_MULTI_AGENT_V2_MODIFICATION_DETAIL]
+        and _installation_modifications_allow_rollback(codex_home, manifest)
     )
     if (
         status.state is not InstallationState.INSTALLED
-        and not user_owned_v2_is_the_only_modification
+        and not modifications_allow_rollback
     ):
         detail = "; ".join(status.details) if status.details else status.state.value
         raise InstallationViolation(f"installation cannot be rolled back: {detail}")

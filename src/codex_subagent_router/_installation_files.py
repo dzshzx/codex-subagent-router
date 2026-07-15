@@ -101,9 +101,9 @@ def installation_manifest_is_valid(
     expected_state: str,
 ) -> bool:
     try:
-        schema_version = manifest.get("schema_version")
-        if type(schema_version) is not int or schema_version not in (1, 2):
+        if not installation_manifest_has_supported_schema(manifest):
             return False
+        schema_version = cast(int, manifest["schema_version"])
         if manifest.get("state") != expected_state:
             return False
         config = cast(dict[str, object], manifest["config"])
@@ -165,6 +165,13 @@ def installation_manifest_is_valid(
         return _hooks_snapshot_is_consistent(hooks)
     except (KeyError, TypeError, ValueError):
         return False
+
+
+def installation_manifest_has_supported_schema(
+    manifest: dict[str, object],
+) -> bool:
+    schema_version = manifest.get("schema_version")
+    return type(schema_version) is int and schema_version in (1, 2)
 
 
 def _file_snapshot_is_valid(snapshot: dict[str, object]) -> bool:
@@ -346,12 +353,11 @@ def installation_modifications(
                 roles_are_compatible
             ):
                 details.append("managed role block is missing or modified")
-            if manifest.get("schema_version") == 2:
-                multi_agent_v2_is_present, multi_agent_v2_issue = (
-                    inspect_multi_agent_v2_configuration(config_document)
-                )
-                if not multi_agent_v2_is_present or multi_agent_v2_issue is not None:
-                    details.append(MULTI_AGENT_V2_MODIFICATION_DETAIL)
+            multi_agent_v2_is_present, multi_agent_v2_issue = (
+                inspect_multi_agent_v2_configuration(config_document)
+            )
+            if not multi_agent_v2_is_present or multi_agent_v2_issue is not None:
+                details.append(MULTI_AGENT_V2_MODIFICATION_DETAIL)
 
     hooks_path = codex_home / "hooks.json"
     hooks_manifest = cast(dict[str, object], manifest["hooks"])
@@ -380,6 +386,24 @@ def installation_modifications(
     ):
         details.append("managed hook groups are missing or modified")
     return details
+
+
+def installation_modifications_allow_rollback(
+    codex_home: Path,
+    manifest: dict[str, object],
+) -> bool:
+    """Allow rollback when only non-owned V2 compatibility has drifted."""
+    if installation_modifications(codex_home, manifest) != [
+        MULTI_AGENT_V2_MODIFICATION_DETAIL
+    ]:
+        return False
+    schema_version = manifest.get("schema_version")
+    if schema_version == 1:
+        return True
+    if schema_version != 2:
+        return False
+    config_manifest = cast(dict[str, object], manifest["config"])
+    return config_manifest.get("managed_multi_agent_v2") is False
 
 
 def launcher_issues(manifest: dict[str, object]) -> list[str]:

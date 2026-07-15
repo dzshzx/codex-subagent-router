@@ -397,7 +397,7 @@ def test_plan_after_installation_is_unchanged(
     )
 
 
-def test_schema_one_installation_without_v2_remains_rollbackable(
+def test_schema_one_installation_without_v2_is_modified_but_rollbackable(
     tmp_path: Path,
 ) -> None:
     hook_command = (str(_hook_executable(tmp_path)),)
@@ -423,10 +423,14 @@ def test_schema_one_installation_without_v2_remains_rollbackable(
     plan = plan_user_installation(tmp_path, hook_command)
     rolled_back = rollback_user_config(tmp_path)
 
-    assert status.state is InstallationState.INSTALLED
+    assert status == InstallationStatus(
+        codex_home=tmp_path,
+        state=InstallationState.MODIFIED,
+        details=("managed MultiAgent V2 configuration is missing or modified",),
+    )
     assert plan.conflicts == (
-        "existing installation differs from the requested configuration; "
-        "roll it back before reinstalling",
+        "existing installation state is not healthy: managed MultiAgent V2 "
+        "configuration is missing or modified",
     )
     assert rolled_back.config_action is RollbackFileAction.REMOVED
     assert rolled_back.hooks_action is RollbackFileAction.REMOVED

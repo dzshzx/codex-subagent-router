@@ -48,9 +48,10 @@ following state paths.
 
 Schema 2 receipts record both the expected V2 values and whether the installer
 owns that table. Schema 1 receipts from installations that predate the V2
-default remain valid for status and rollback, so an upgrade can require a clean
-rollback instead of trapping the old installation in a non-rollbackable
-`modified` state.
+default remain structurally valid. Status reports them as `modified` when their
+configuration is not V2-compatible, while rollback remains allowed when that
+is the only drift. This requires a clean migration without trapping the old
+installation in a non-rollbackable state.
 
 The transaction is recoverable rather than falsely described as cross-file
 atomic. If an installation reports a filesystem error in-process, restore both
