@@ -14,6 +14,25 @@ class AgentLayer(StrEnum):
     USER = "user"
     PROJECT = "project"
 
+    @property
+    def message_prefix(self) -> str:
+        return "project " if self is AgentLayer.PROJECT else ""
+
+    def managed_role_conflict(self, relative_path: str, role_name: str) -> str:
+        if self is AgentLayer.PROJECT:
+            return (
+                f"project standalone agent file {relative_path!r} declares managed "
+                f"role {role_name!r} and shadows the user-level router role; change "
+                "its declared name or move it out of the active project agents "
+                "directory"
+            )
+        return (
+            f"standalone agent file {relative_path!r} declares managed role "
+            f"{role_name!r}; change its declared name or move it out of the active "
+            "agents directory before installation; the installer will leave the "
+            "file unchanged"
+        )
+
 
 @dataclass(frozen=True, slots=True)
 class StandaloneAgentInspection:
@@ -28,7 +47,7 @@ def _standalone_agent_files(
     agents_directory: Path,
     layer: AgentLayer,
 ) -> tuple[tuple[Path, ...], tuple[str, ...]]:
-    message_prefix = "project " if layer is AgentLayer.PROJECT else ""
+    message_prefix = layer.message_prefix
     pending_directories = [agents_directory]
     standalone_files: list[Path] = []
     issues: list[str] = []
@@ -66,7 +85,7 @@ def _inspect_agent_directory(
     agents_directory: Path,
     layer: AgentLayer,
 ) -> StandaloneAgentInspection:
-    message_prefix = "project " if layer is AgentLayer.PROJECT else ""
+    message_prefix = layer.message_prefix
     relative_directory = agents_directory.relative_to(root).as_posix()
     if agents_directory.is_symlink():
         return StandaloneAgentInspection(
@@ -147,20 +166,7 @@ def _inspect_agent_directory(
             continue
         normalized_name = name.strip()
         if normalized_name in managed_roles:
-            if layer is AgentLayer.PROJECT:
-                issues.append(
-                    f"{message_prefix}standalone agent file {relative_path!r} "
-                    f"declares managed role {normalized_name!r} and shadows the "
-                    "user-level router role; change its declared name or move it "
-                    "out of the active project agents directory"
-                )
-            else:
-                issues.append(
-                    f"standalone agent file {relative_path!r} declares managed "
-                    f"role {normalized_name!r}; change its declared name or move "
-                    "it out of the active agents directory before installation; "
-                    "the installer will leave the file unchanged"
-                )
+            issues.append(layer.managed_role_conflict(relative_path, normalized_name))
     return StandaloneAgentInspection(
         agent_files=agent_files,
         issues=tuple(issues),
