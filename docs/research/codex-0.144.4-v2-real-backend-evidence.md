@@ -104,6 +104,26 @@ In the rollout file, the spawn `message` argument is stored encrypted
 therefore recover route distributions from rollouts without access to
 inter-agent message content.
 
+## Second run set: production-config replica without roles
+
+A same-day follow-up probe replicated a real user `config.toml` byte for
+byte into a fresh isolated home. Its V2 table carried only
+`hide_spawn_agent_metadata = false` and `tool_namespace = "agents"` — no
+`enabled` key — and the configuration declared no custom roles. The root
+session ran the user's own compute (`gpt-5.6-terra` / `xhigh`).
+
+| Evidence | Observation |
+|---|---|
+| Startup | No under-development feature warning (the flag was never set); V2 was still selected, consistent with model metadata driving generation choice. |
+| Spawn call | `task_name`, `model = "gpt-5.6-sol"`, `reasoning_effort = "low"`, `fork_turns = "none"`, and **no `agent_type`** — accepted by the CLI and the real backend. |
+| Child `turn_context` | `gpt-5.6-sol` / `low` while the root ran `terra` / `xhigh`: explicit routing, not inheritance. |
+| Offline replay | `usage-report` classified the role-less call as valid under the optional-`agent_type` contract. |
+
+Consequences: a user-owned V2 table without `enabled` is sufficient for
+explicit routing on V2-metadata models, and `agent_type` may be omitted
+entirely. The installer's `enabled = true` remains a deliberate
+explicitness choice, not a routing prerequisite for Sol/Terra.
+
 ## Implications
 
 - The deployment configuration chosen by ADR-0005 is now backed by a
