@@ -193,11 +193,12 @@ value objects are constructed.
 the same validator capability seam, so for verified spawn tool
 names the validator selects the contract from the input shape: a `task_name`
 or `fork_turns` field selects the V2 contract, and any other object is
-validated as a V1 spawn. Both variants must route explicitly with
-`agent_type`, `model`, and `reasoning_effort` validated against the policy
-seam. V2 spawns additionally require `message`, `task_name`, and
-`fork_turns="none"` or a positive integer string; V1 spawns require exactly
-one of `message` or `items` and must leave `fork_context` false or omitted.
+validated as a V1 spawn. Both variants must route explicitly with `model`
+and `reasoning_effort` validated against the policy seam; `agent_type` is
+optional and must be a non-empty string when present. V2 spawns additionally
+require `message`, `task_name`, and `fork_turns="none"` or a positive
+integer string; V1 spawns require exactly one of `message` or `items` and
+must leave `fork_context` false or omitted.
 The validator returns either a deny value or `None` and never rewrites tool
 input.
 

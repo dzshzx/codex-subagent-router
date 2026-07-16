@@ -50,14 +50,24 @@ def test_skill_document_states_the_spawn_contract() -> None:
     assert "Child effort ultra is prohibited." in document
     assert "task_name (lowercase letters, digits, and underscores only)" in document
     assert (
-        "Choose every routed child explicitly with agent_type, model, "
-        "and reasoning_effort." in document
+        "Choose every routed child explicitly with model and "
+        "reasoning_effort." in document
+    )
+    assert (
+        "Set agent_type when a suitable declared role exists; omit it "
+        "otherwise." in document
+    )
+    assert (
+        "Pick the profile whose purpose matches the task; do not default "
+        "to the parent session's compute." in document
     )
 
 
-def test_skill_document_lists_the_managed_roles() -> None:
+def test_skill_document_lists_the_managed_roles_as_an_optional_layer() -> None:
     document = render_skill_markdown()
 
+    assert "## Managed roles (optional layer)" in document
+    assert "otherwise omit agent_type and route by model and effort alone." in document
     for line in (
         "- researcher: Primary-source researcher for external documentation, "
         "APIs, specifications, and upstream code.",

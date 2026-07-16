@@ -97,7 +97,8 @@ def routing_guidance_rules() -> tuple[str, ...]:
     """Return parent-facing selection rules derived from routing policy."""
     conditional_efforts = " or ".join(profile.effort for profile in _CONDITIONAL_ROUTES)
     return (
-        "Use the lowest credible routine profile.",
+        "Pick the profile whose purpose matches the task; do not default "
+        "to the parent session's compute.",
         f"Escalate to {conditional_efforts} only when the task requires it.",
         f"Child effort {_PROHIBITED_CHILD_EFFORT} is prohibited.",
     )

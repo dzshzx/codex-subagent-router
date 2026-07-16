@@ -18,7 +18,7 @@ _SPAWN_AGENT_TOOL_NAMES = frozenset(
         "spawn_agent",
     }
 )
-_ROUTED_SPAWN_GUIDANCE_FIELDS = ("agent_type", "model", "reasoning_effort")
+_ROUTED_SPAWN_GUIDANCE_FIELDS = ("model", "reasoning_effort")
 # Stable MultiAgent V1 and MultiAgent V2 register the same hook tool name,
 # so the variant is identified by shape: only V2 carries task_name and
 # fork_turns, while only V1 carries items and fork_context.
@@ -26,9 +26,15 @@ _V2_MARKER_FIELDS = frozenset({"task_name", "fork_turns"})
 _V2_REQUIRED_FIELDS = frozenset(
     ("message", "task_name", "fork_turns", *_ROUTED_SPAWN_GUIDANCE_FIELDS)
 )
-_V2_FIELDS = _V2_REQUIRED_FIELDS | {"service_tier"}
+_V2_FIELDS = _V2_REQUIRED_FIELDS | {"agent_type", "service_tier"}
 _V1_REQUIRED_FIELDS = frozenset(_ROUTED_SPAWN_GUIDANCE_FIELDS)
-_V1_FIELDS = _V1_REQUIRED_FIELDS | {"message", "items", "service_tier", "fork_context"}
+_V1_FIELDS = _V1_REQUIRED_FIELDS | {
+    "agent_type",
+    "message",
+    "items",
+    "service_tier",
+    "fork_context",
+}
 _INDEPENDENT_FORK_TURNS = "none"
 
 
@@ -39,10 +45,10 @@ def is_spawn_tool_name(tool_name: str) -> bool:
 
 def routed_spawn_guidance_rules() -> tuple[str, ...]:
     """Return parent-facing rules owned by spawn validation."""
-    *leading_fields, final_field = _ROUTED_SPAWN_GUIDANCE_FIELDS
-    explicit_fields = f"{', '.join(leading_fields)}, and {final_field}"
+    explicit_fields = " and ".join(_ROUTED_SPAWN_GUIDANCE_FIELDS)
     return (
         f"Choose every routed child explicitly with {explicit_fields}.",
+        "Set agent_type when a suitable declared role exists; omit it otherwise.",
         "On MultiAgent V2, also set task_name (lowercase letters, digits, "
         "and underscores only) and "
         f'fork_turns="{_INDEPENDENT_FORK_TURNS}" for independent work or a '
@@ -162,15 +168,16 @@ def _validate_v1_shape(
 def _validate_routed_compute(
     tool_input: dict[str, object],
 ) -> PreToolUseDenyOutput | None:
-    if "service_tier" in tool_input:
-        service_tier = tool_input["service_tier"]
-        if not isinstance(service_tier, str) or not service_tier.strip():
-            return PreToolUseDenyOutput(
-                reason=(
-                    "spawn_agent field 'service_tier' must be a non-empty string "
-                    "when present"
+    for optional_field in ("agent_type", "service_tier"):
+        if optional_field in tool_input:
+            value = tool_input[optional_field]
+            if not isinstance(value, str) or not value.strip():
+                return PreToolUseDenyOutput(
+                    reason=(
+                        f"spawn_agent field {optional_field!r} must be a "
+                        "non-empty string when present"
+                    )
                 )
-            )
     reasoning_effort = cast(str, tool_input["reasoning_effort"])
     try:
         validate_child_effort(reasoning_effort)

@@ -89,7 +89,12 @@ def _role_section() -> str:
         f"- {contract.agent_type}: {contract.description}"
         for contract in role_contracts()
     )
-    return f"## Managed roles\n\n{roles}"
+    return (
+        "## Managed roles (optional layer)\n\n"
+        "Use these agent_type values only when the roles are declared in "
+        "the active configuration; otherwise omit agent_type and route by "
+        f"model and effort alone.\n\n{roles}"
+    )
 
 
 def _spawn_contract_section() -> str:

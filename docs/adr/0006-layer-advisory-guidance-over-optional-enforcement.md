@@ -5,6 +5,12 @@
 
 ## Context
 
+The routing goal is fitness, not frugality: every child should run on the
+profile whose purpose matches the task — neither inheriting the parent
+session's high compute by default nor starving hard work on a cheap
+profile. The guidance must stay useful independent of any specific
+workflow, so role identities cannot be a prerequisite for routing.
+
 The policy source now feeds two derived surfaces beyond the hooks: a
 generated agent-skill document (`render-skill`) and an offline usage report
 (`usage-report`) that replays recorded spawn calls through the deny-only
@@ -32,10 +38,12 @@ Deploy in two tiers, both derived from the same policy, role, validator, and
 dispatch-guidance sources:
 
 - **Tier A — advisory (default starting point).** The generated skill
-  document plus minimal user-owned configuration: the exact V2 table from
-  ADR-0005 and the four description-only inline roles. No hooks, no trust
-  flow, no deny, no `SubagentStart` contract injection. Children receive the
-  role description and the parent's task packet only.
+  document plus the minimal user-owned configuration: the exact V2 table
+  from ADR-0005. No hooks, no trust flow, no deny, no `SubagentStart`
+  contract injection. Routing is by model and effort; `agent_type` is
+  optional. The four description-only inline roles are an optional layer
+  for workflows that use them — when declared, children receive the role
+  description and the parent's task packet only.
 - **Tier B — managed.** The full hook deployment specified by ADR-0001.
   ADR-0001 remains accepted as the implementation contract for this tier.
 

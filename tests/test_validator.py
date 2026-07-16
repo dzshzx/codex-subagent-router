@@ -185,6 +185,23 @@ def test_service_tier_must_be_a_non_empty_string_when_present() -> None:
     )
 
 
+def test_spawn_without_agent_type_is_allowed() -> None:
+    tool_input = _valid_spawn_input()
+    del tool_input["agent_type"]
+
+    assert validate_pre_tool_use(_pre_tool_use(tool_input)) is None
+
+
+def test_agent_type_must_be_a_non_empty_string_when_present() -> None:
+    hook_input = _pre_tool_use(_valid_spawn_input(agent_type="   "))
+
+    assert validate_pre_tool_use(hook_input) == PreToolUseDenyOutput(
+        reason=(
+            "spawn_agent field 'agent_type' must be a non-empty string when present"
+        )
+    )
+
+
 def _valid_v1_spawn_input(**overrides: object) -> dict[str, object]:
     tool_input: dict[str, object] = {
         "message": "Review the bounded diff",
@@ -217,6 +234,13 @@ def test_supported_explicit_v1_spawn_is_allowed_without_output(
     )
 
     assert validate_pre_tool_use(hook_input) is None
+
+
+def test_v1_spawn_without_agent_type_is_allowed() -> None:
+    tool_input = _valid_v1_spawn_input()
+    del tool_input["agent_type"]
+
+    assert validate_pre_tool_use(_pre_tool_use(tool_input)) is None
 
 
 def test_v1_spawn_with_items_is_allowed() -> None:
