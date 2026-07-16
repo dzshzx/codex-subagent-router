@@ -2,6 +2,11 @@
 
 - Status: Accepted
 - Date: 2026-07-15
+- Update 2026-07-16: the real-backend gap noted below is closed for the
+  pinned binary by
+  [`codex-0.144.4-v2-real-backend-evidence.md`](../research/codex-0.144.4-v2-real-backend-evidence.md);
+  the user-owned V2 table is also the Tier A entry path defined by
+  [ADR-0006](0006-layer-advisory-guidance-over-optional-enforcement.md).
 
 ## Context
 

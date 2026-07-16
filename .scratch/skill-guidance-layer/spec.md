@@ -33,5 +33,18 @@ single executable source, and two new derived surfaces make daily use lighter.
 - 03: offline usage report with CLI `usage-report` — done in this change.
 - 04 (open): calibration after two weeks of real usage — revisit profile set,
   delegation signals, and PreToolUse necessity with `usage-report` data.
-- 05 (open): installer awareness of the skill surface (avoid double guidance
-  when both SessionStart hook and skill document are active).
+- 05 (open): component-aware installation — Tier A (config + skill, no
+  hooks) as an installer target with hash-tracked skill copies and
+  user-modification detection (ADR-0003 semantics; Trellis-style three-way
+  classification), plus SessionStart/skill duplication handling in Tier B.
+- 06 (open): isolated probe — does an instructions-only standalone role file
+  (developer_instructions, no model/effort) preserve per-spawn compute on
+  0.144.4? Evidence gates the Tier A role-contract channel (ADR-0006).
+
+## Design alignment
+
+ADR-0006 records the two-tier posture (advisory default, observed data
+decides enforcement), the generated-artifact discipline (no rendered
+snapshot in this repository), and the fail-closed boundary for standalone
+role contracts. Reference research: scratchpad `trellis-research.md`
+(mindfold-ai/Trellis field comparison, 2026-07-16).
