@@ -102,22 +102,44 @@ fork shape to select; the `PreToolUse` hook validates that explicit selection
 and only denies invalid calls. It never chooses, fills, or rewrites spawn
 parameters automatically.
 
-Five profiles cover routine work in ascending capability order:
+Five named profiles cover routine work in ascending capability order:
 
-| Model | Effort |
-|---|---|
-| `gpt-5.6-terra` | `medium` |
-| `gpt-5.6-sol` | `low` |
-| `gpt-5.6-terra` | `high` |
-| `gpt-5.6-sol` | `medium` |
-| `gpt-5.6-sol` | `high` |
+| Profile | Model | Effort | Use for |
+|---|---|---|---|
+| `scout` | `gpt-5.6-terra` | `medium` | Broad reads, enumeration, and mechanical extraction. |
+| `worker` | `gpt-5.6-sol` | `low` | Routine bounded execution with fast turnaround. |
+| `analyst` | `gpt-5.6-terra` | `high` | Wide reading, digestion, and first drafts on the budget model. |
+| `builder` | `gpt-5.6-sol` | `medium` | Standard implementation and multi-step changes. |
+| `judge` | `gpt-5.6-sol` | `high` | Critical review, adjudication, and hard debugging. |
 
-Two profiles provide conditional escalation in ascending capability order:
+Two named profiles provide conditional escalation in ascending capability
+order:
 
-| Model | Effort |
-|---|---|
-| `gpt-5.6-sol` | `xhigh` |
-| `gpt-5.6-sol` | `max` |
+| Profile | Model | Effort | Use for |
+|---|---|---|---|
+| `escalation_xhigh` | `gpt-5.6-sol` | `xhigh` | Escalation when judge-level work needs deeper reasoning. |
+| `escalation_max` | `gpt-5.6-sol` | `max` | Maximum effort; requires a stated concrete reason. |
+
+## Generated skill document and usage report
+
+Two derived surfaces make daily routing lighter without adding a second
+policy source:
+
+```bash
+codex-subagent-router render-skill --out ~/.agents/skills/codex-subagent-routing/SKILL.md
+codex-subagent-router usage-report --sessions-dir "$CODEX_HOME/sessions"
+```
+
+`render-skill` renders the routing policy, managed role descriptions, spawn
+contract, delegation signals, a child task packet template, and a result
+contract into one agent-skill markdown document. The output is a generated
+artifact: regenerate it after policy changes instead of editing it.
+
+`usage-report` scans an explicit sessions directory for rollout files,
+extracts every spawn tool call (route fields are recorded in plaintext), and
+replays each call through the deny-only validator. The machine-readable
+output reports the route distribution and the violation rate — the data for
+deciding how much enforcement a deployment actually needs.
 
 ## Public API
 
@@ -483,6 +505,7 @@ git diff --check
 4. `SessionStart` routing guidance and `SubagentStart` role contracts. **Complete.**
 5. Isolated end-to-end hook probes. **Complete.**
 6. User-level plan/install/update/status/doctor/uninstall lifecycle. **Complete.**
+7. Named route profiles, generated skill document, and offline usage report. **Complete.**
 
 ## Prohibitions
 
