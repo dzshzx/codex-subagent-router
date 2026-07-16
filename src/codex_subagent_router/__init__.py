@@ -45,7 +45,14 @@ from .protocol import (
     parse_hook_input,
 )
 from .roles import RoleContract, role_contracts
+from .skill_render import render_skill_markdown, skill_name
 from .start_context import session_start_context, subagent_start_context
+from .usage_report import (
+    SpawnCall,
+    UsageReport,
+    UsageReportViolation,
+    usage_report,
+)
 from .validator import validate_pre_tool_use
 
 __all__ = (
@@ -71,6 +78,9 @@ __all__ = (
     "InstallationViolation",
     "RollbackFileAction",
     "RollbackResult",
+    "SpawnCall",
+    "UsageReport",
+    "UsageReportViolation",
     "conditional_routes",
     "doctor_user_config",
     "encode_hook_output",
@@ -82,11 +92,14 @@ __all__ = (
     "parse_hook_input",
     "plan_user_installation",
     "plan_user_update",
+    "render_skill_markdown",
     "role_contracts",
     "rollback_user_config",
     "routine_routes",
     "session_start_context",
+    "skill_name",
     "subagent_start_context",
+    "usage_report",
     "validate_child_effort",
     "validate_pre_tool_use",
     "update_user_config",

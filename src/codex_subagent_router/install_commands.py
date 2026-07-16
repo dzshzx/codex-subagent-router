@@ -24,6 +24,8 @@ from .installation import (
     rollback_user_config,
     update_user_config,
 )
+from .skill_render import render_skill_markdown, skill_name
+from .usage_report import UsageReport, UsageReportViolation, usage_report
 
 
 class _UsageViolation(ValueError):
@@ -46,6 +48,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
 
     operation = cast(str, arguments.operation)
+    if operation == "render-skill":
+        return _run_render_skill(arguments)
+    if operation == "usage-report":
+        return _run_usage_report(arguments)
     codex_home = cast(Path, arguments.codex_home).absolute()
     try:
         if operation == "plan":
@@ -121,7 +127,67 @@ def _build_parser() -> _ArgumentParser:
     for operation in ("status", "rollback", "uninstall"):
         subparser = subparsers.add_parser(operation)
         _add_codex_home_argument(subparser)
+    render_parser = subparsers.add_parser("render-skill")
+    render_parser.add_argument(
+        "--out",
+        type=_codex_home_argument,
+        help="write the generated skill document here instead of stdout",
+    )
+    report_parser = subparsers.add_parser("usage-report")
+    report_parser.add_argument(
+        "--sessions-dir",
+        dest="sessions_dir",
+        required=True,
+        type=_codex_home_argument,
+        help="explicit Codex sessions directory to scan",
+    )
     return parser
+
+
+def _run_render_skill(arguments: argparse.Namespace) -> int:
+    document = render_skill_markdown()
+    out = cast(Path | None, arguments.out)
+    if out is None:
+        print(document, end="")
+        return 0
+    target = out.absolute()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(document, encoding="utf-8")
+    _print_json({"skill_name": skill_name(), "written_to": str(target)})
+    return 0
+
+
+def _run_usage_report(arguments: argparse.Namespace) -> int:
+    sessions_dir = cast(Path, arguments.sessions_dir).absolute()
+    try:
+        report = usage_report(sessions_dir)
+    except UsageReportViolation as error:
+        print(f"usage report error: {error}", file=sys.stderr)
+        return 1
+    _print_json(_usage_report_document(report))
+    return 0
+
+
+def _usage_report_document(report: UsageReport) -> dict[str, object]:
+    return {
+        "sessions_scanned": report.sessions_scanned,
+        "sessions_with_spawns": report.sessions_with_spawns,
+        "denied_calls": report.denied_calls,
+        "route_distribution": dict(report.route_distribution),
+        "spawn_calls": [
+            {
+                "session_file": call.session_file,
+                "tool_name": call.tool_name,
+                "task_name": call.task_name,
+                "agent_type": call.agent_type,
+                "model": call.model,
+                "reasoning_effort": call.reasoning_effort,
+                "fork_turns": call.fork_turns,
+                "deny_reason": call.deny_reason,
+            }
+            for call in report.spawn_calls
+        ],
+    }
 
 
 def _add_codex_home_argument(parser: argparse.ArgumentParser) -> None:
