@@ -163,17 +163,17 @@ Managed roles:
 - interface_designer: Read-only module-interface designer for independent API and module-shape alternatives.
 
 Routine profiles in ascending capability order:
-- gpt-5.6-terra / medium
-- gpt-5.6-sol / low
-- gpt-5.6-terra / high
-- gpt-5.6-sol / medium
-- gpt-5.6-sol / high
+- scout: gpt-5.6-terra / medium — Broad reads, enumeration, and mechanical extraction.
+- worker: gpt-5.6-sol / low — Routine bounded execution with fast turnaround.
+- analyst: gpt-5.6-terra / high — Wide reading, digestion, and first drafts on the budget model.
+- builder: gpt-5.6-sol / medium — Standard implementation and multi-step changes.
+- judge: gpt-5.6-sol / high — Critical review, adjudication, and hard debugging.
 
 Conditional escalation profiles in ascending capability order:
-- gpt-5.6-sol / xhigh
-- gpt-5.6-sol / max
+- escalation_xhigh: gpt-5.6-sol / xhigh — Escalation when judge-level work needs deeper reasoning.
+- escalation_max: gpt-5.6-sol / max — Maximum effort; requires a stated concrete reason.
 
-Use the lowest credible routine profile. Escalate to xhigh or max only when the task requires it. Child effort ultra is prohibited. On MultiAgent V2, also set task_name and fork_turns="none" for independent work or a positive integer string for limited recent context; do not use full-history all with explicit routing. On stable MultiAgent V1, leave fork_context false or omitted; do not spawn full-history forks with explicit routing. Do not omit routed fields or silently rewrite them."""
+Use the lowest credible routine profile. Escalate to xhigh or max only when the task requires it. Child effort ultra is prohibited. On MultiAgent V2, also set task_name (lowercase letters, digits, and underscores only) and fork_turns="none" for independent work or a positive integer string for limited recent context; do not use full-history all with explicit routing. On stable MultiAgent V1, leave fork_context false or omitted; do not spawn full-history forks with explicit routing. Do not omit routed fields or silently rewrite them."""
     )
 
 

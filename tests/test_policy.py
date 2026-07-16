@@ -29,6 +29,28 @@ def test_conditional_routes_match_the_initial_policy() -> None:
     )
 
 
+def test_route_profile_names_are_stable() -> None:
+    actual = tuple(
+        (route.name, route.model, route.effort)
+        for route in routine_routes() + conditional_routes()
+    )
+
+    assert actual == (
+        ("scout", "gpt-5.6-terra", "medium"),
+        ("worker", "gpt-5.6-sol", "low"),
+        ("analyst", "gpt-5.6-terra", "high"),
+        ("builder", "gpt-5.6-sol", "medium"),
+        ("judge", "gpt-5.6-sol", "high"),
+        ("escalation_xhigh", "gpt-5.6-sol", "xhigh"),
+        ("escalation_max", "gpt-5.6-sol", "max"),
+    )
+
+
+def test_every_route_profile_states_a_purpose() -> None:
+    for route in routine_routes() + conditional_routes():
+        assert route.purpose.strip(), route.name
+
+
 def test_supported_child_efforts_are_accepted() -> None:
     efforts = ("low", "medium", "high", "xhigh", "max")
 

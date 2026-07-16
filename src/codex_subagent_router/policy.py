@@ -9,43 +9,59 @@ class PolicyViolation(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class Profile:
-    """One automatic model and effort choice."""
+    """One named automatic model and effort choice."""
 
+    name: str
     model: str
     effort: str
+    purpose: str
 
 
 _ROUTINE_ROUTES = (
     Profile(
+        name="scout",
         model="gpt-5.6-terra",
         effort="medium",
+        purpose="Broad reads, enumeration, and mechanical extraction.",
     ),
     Profile(
+        name="worker",
         model="gpt-5.6-sol",
         effort="low",
+        purpose="Routine bounded execution with fast turnaround.",
     ),
     Profile(
+        name="analyst",
         model="gpt-5.6-terra",
         effort="high",
+        purpose="Wide reading, digestion, and first drafts on the budget model.",
     ),
     Profile(
+        name="builder",
         model="gpt-5.6-sol",
         effort="medium",
+        purpose="Standard implementation and multi-step changes.",
     ),
     Profile(
+        name="judge",
         model="gpt-5.6-sol",
         effort="high",
+        purpose="Critical review, adjudication, and hard debugging.",
     ),
 )
 
 _CONDITIONAL_ROUTES = (
     Profile(
+        name="escalation_xhigh",
         model="gpt-5.6-sol",
         effort="xhigh",
+        purpose="Escalation when judge-level work needs deeper reasoning.",
     ),
     Profile(
+        name="escalation_max",
         model="gpt-5.6-sol",
         effort="max",
+        purpose="Maximum effort; requires a stated concrete reason.",
     ),
 )
 

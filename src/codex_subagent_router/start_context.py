@@ -21,10 +21,12 @@ def session_start_context(hook_input: SessionStartInput) -> SessionStartOutput |
         for contract in role_contracts()
     )
     routine_profiles = "\n".join(
-        f"- {profile.model} / {profile.effort}" for profile in routine_routes()
+        f"- {profile.name}: {profile.model} / {profile.effort} — {profile.purpose}"
+        for profile in routine_routes()
     )
     conditional_profiles = "\n".join(
-        f"- {profile.model} / {profile.effort}" for profile in conditional_routes()
+        f"- {profile.name}: {profile.model} / {profile.effort} — {profile.purpose}"
+        for profile in conditional_routes()
     )
     spawn_rules = routed_spawn_guidance_rules()
     closing_rules = " ".join(routing_guidance_rules() + spawn_rules[1:])

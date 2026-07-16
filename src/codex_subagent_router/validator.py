@@ -32,13 +32,19 @@ _V1_FIELDS = _V1_REQUIRED_FIELDS | {"message", "items", "service_tier", "fork_co
 _INDEPENDENT_FORK_TURNS = "none"
 
 
+def is_spawn_tool_name(tool_name: str) -> bool:
+    """Return whether a hook-visible tool name is a routed spawn tool."""
+    return tool_name in _SPAWN_AGENT_TOOL_NAMES
+
+
 def routed_spawn_guidance_rules() -> tuple[str, ...]:
     """Return parent-facing rules owned by spawn validation."""
     *leading_fields, final_field = _ROUTED_SPAWN_GUIDANCE_FIELDS
     explicit_fields = f"{', '.join(leading_fields)}, and {final_field}"
     return (
         f"Choose every routed child explicitly with {explicit_fields}.",
-        "On MultiAgent V2, also set task_name and "
+        "On MultiAgent V2, also set task_name (lowercase letters, digits, "
+        "and underscores only) and "
         f'fork_turns="{_INDEPENDENT_FORK_TURNS}" for independent work or a '
         "positive integer string for limited recent context; do not use "
         "full-history all with explicit routing.",
