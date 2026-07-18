@@ -27,7 +27,8 @@ remaining real-backend boundary.
 - Strict mypy type checking
 - `src/` package layout
 - Pure hook handlers behind command and installation adapters
-- Description-only managed roles and recoverable user-configuration transactions
+- Description-only managed identities and recoverable user-configuration
+  transactions
 - POSIX-only verified installation lifecycle (POSIX file modes and
   `shlex` quoting); Windows is unverified
 - Test suite gated on Python 3.11 (declared minimum) and the current
@@ -50,14 +51,15 @@ compatibility seam; they do not verify the current V2-default generated
 configuration. A current deployment should use the `0.144.4` V2 settings below
 and retain its stated provider boundary.
 
-Router-managed roles use one definition mode: description-only inline role
+Router-managed identities use one definition mode: description-only inline role
 declarations plus the generated Hooks. Standalone custom-agent files are an
 alternative mode, not an additional source for the same role. Do not declare
-`researcher`, `reviewer`, `architecture_explorer`, or `interface_designer` in
-any active user or project `agents` directory while using this router. The
-installer recursively rejects those names under the explicit user Codex home;
-project-layer collisions remain unsupported, but `doctor` can diagnose one
-explicit project's `.codex/agents` tree without modifying it.
+`researcher` or `reviewer` in any active user or project `agents` directory
+while using this router. The installer recursively rejects those names under
+the explicit user Codex home; project-layer collisions remain unsupported, but
+`doctor` can diagnose one explicit project's `.codex/agents` tree without
+modifying it. See the [identity roster](docs/role-contracts.md) for the boundary
+between platform identities, managed identities, task briefs, and methods.
 
 The `0.144.3` probe used package version `0.1.2`. Version `0.1.3` changed only
 branch-agnostic documentation links. Version `0.1.4` retains the same generated
@@ -67,8 +69,8 @@ changes do not extend the Codex-version compatibility claim beyond the recorded
 probe. Version `0.1.5` adds user-level update, doctor, and uninstall lifecycle
 surfaces without changing the generated Hook protocol or expanding the recorded
 Codex-version compatibility claim. Version `0.1.7` replaces fixed model/effort
-profiles with independent model capability and reasoning-depth guidance; it does
-not expand the recorded Codex-version compatibility claim.
+profiles with independent model and effort catalogs; it does not expand the
+recorded Codex-version compatibility claim.
 
 The installed `0.144.3` release binary drifts from its source tag: it still
 reports the flattened `collaborationspawn_agent` hook tool name and its
@@ -80,17 +82,14 @@ Codex ships two multi-agent tool generations. In `0.144.4`, the session uses
 the selected model's `multi_agent_version` metadata before falling back to the
 feature default. The bundled catalog assigns V2 to `gpt-5.6-sol` and
 `gpt-5.6-terra`, while `gpt-5.6-luna` reports V1. Generated installations
-explicitly enable V2 because Sol and Terra own the routine parent routing
-surface. They also set
+explicitly enable V2. They also set
 `hide_spawn_agent_metadata = false` so the Hook can validate role/model/effort,
 and `tool_namespace = "agents"` to keep the spawn tool on the verified matcher
-seam. Luna is available for simple leaf-child work: a real-backend `0.144.4`
-probe confirmed
-that a V2 Sol parent can create a Luna/low child with the requested compute.
+seam. A real-backend `0.144.4` probe confirmed that a V2 Sol parent can create
+a Luna/low child with the requested compute.
 The validator retains V1 input-shape support for compatibility, but V1 is not
 the generated installation priority. See
-[ADR-0005](docs/adr/0005-enable-multiagent-v2-for-gpt-5-6.md) and
-[ADR-0007](docs/adr/0007-plan-model-and-effort-independently.md).
+[ADR-0005](docs/adr/0005-enable-multiagent-v2-for-gpt-5-6.md).
 
 Unlisted Codex versions are unverified. The protocol boundary is deliberately
 strict, while Codex command-hook failures are fail-open; an upstream schema or
@@ -101,32 +100,30 @@ spawn-denial, managed-child, generated-installation, status, and rollback
 probes pass. Keep each version's evidence as a separate record rather than
 replacing old links with an unpinned `latest` reference.
 
-## Guided routing policy
+## Route options
 
-The policy exposes independent model and reasoning-effort catalogs for an
-explicit parent decision. The parent interprets the task, chooses model by the
-capability required, then chooses effort separately by reasoning depth,
-ambiguity, risk, and verification needs. The `PreToolUse` hook validates that
-both choices are supported and only denies invalid calls. It never interprets
-the task, fills a missing field, or rewrites a decision.
+The same independent model and effort catalogs apply to `default`, `explorer`,
+`worker`, `researcher`, and `reviewer`; there are no per-identity compute
+profiles. The parent supplies explicit values. `PreToolUse` only validates
+them and never guesses or rewrites them.
 
-| Model | Use for |
+| Model | Description |
 |---|---|
-| `gpt-5.6-luna` | Simple, low-risk, self-contained lookup, enumeration, and mechanical extraction. |
-| `gpt-5.6-terra` | Routine bounded execution, focused code changes, cross-file reading, synthesis, and analysis. |
-| `gpt-5.6-sol` | Complex multi-step implementation, critical review, adjudication, hard debugging, and high-risk work. |
+| `gpt-5.6-luna` | Lightweight model. |
+| `gpt-5.6-terra` | General-purpose model. |
+| `gpt-5.6-sol` | Highest-capability model. |
 
-| Effort | Use for | Concrete reason required |
-|---|---|---|
-| `low` | Straightforward work with a clear path, few steps, and cheap verification. | no |
-| `medium` | Routine multi-step work with a known approach and normal verification. | no |
-| `high` | Ambiguous, cross-cutting, risk-sensitive, or verification-heavy work. | no |
-| `xhigh` | Exceptionally hard reasoning after high is insufficient. | yes |
-| `max` | Explicit highest-quality work after lower effort is insufficient. | yes |
+| Effort | Description |
+|---|---|
+| `low` | Low reasoning depth. |
+| `medium` | Medium reasoning depth. |
+| `high` | High reasoning depth. |
+| `xhigh` | Extra-high reasoning depth. |
+| `max` | Maximum reasoning depth. |
 
-Effort does not compensate for a model that lacks the required capability.
-Any supported model may be combined with any supported effort when that is the
-parent's explicit task-aware decision; child effort `ultra` remains prohibited.
+Any supported model may be combined with any supported effort. `xhigh` and
+`max` have no extra justification requirement; child effort `ultra` remains
+prohibited.
 
 ## Generated skill document and usage report
 
@@ -138,7 +135,7 @@ codex-subagent-router render-skill --out ~/.agents/skills/codex-subagent-routing
 codex-subagent-router usage-report --sessions-dir "$CODEX_HOME/sessions"
 ```
 
-`render-skill` renders the routing policy, managed role descriptions, spawn
+`render-skill` renders the routing policy, managed identity descriptions, spawn
 contract, delegation signals, a child task packet template, and a result
 contract into one agent-skill markdown document. The output is a generated
 artifact: regenerate it after policy changes instead of editing it.
@@ -184,7 +181,7 @@ elif isinstance(hook_input, SessionStartInput):
 elif isinstance(hook_input, SubagentStartInput):
     context = subagent_start_context(hook_input)
 
-managed_roles = role_contracts()
+managed_identities = role_contracts()
 ```
 
 `parse_hook_input` accepts one JSON document and returns a typed
@@ -210,9 +207,8 @@ input.
 
 `session_start_context` emits routing guidance only for a root `startup`; the
 text is derived from the executable route and role sources. `subagent_start_context`
-injects a fixed developer contract for `researcher`, `reviewer`,
-`architecture_explorer`, or `interface_designer`. Built-in and other unmanaged
-roles are left unchanged.
+injects a fixed developer contract for `researcher` or `reviewer`. Built-in and
+other unmanaged identities are left unchanged.
 
 The three `handle_*_document` adapters compose parsing, the matching pure
 handler, and output encoding. They return an empty string when Codex should
@@ -243,10 +239,10 @@ codex login status
 The compatibility table records completed probes, not a runtime version pin.
 If the installed Codex version is not listed, complete the compatibility gate
 in [CONTRIBUTING.md](CONTRIBUTING.md#codex-compatibility-verification) before
-describing the deployment as verified. The installer enables MultiAgent V2 for
-the GPT-5.6 Sol/Terra parent routing surface; the Luna scout remains an explicit
-leaf-child override. Do not remove or override those settings without
-re-verifying the Hook-visible spawn contract.
+describing the deployment as verified. The installer enables the verified
+GPT-5.6 Sol/Terra MultiAgent V2 contract; GPT-5.6 Luna remains an explicit V1
+child override. Do not remove or override those settings without re-verifying
+the Hook-visible spawn contract.
 
 ### Persistent package installation
 
@@ -291,12 +287,11 @@ The plan also recursively inspects active `*.toml` files under the explicit
 `$CODEX_HOME/agents` tree. Every discovered path appears in
 `standalone_agent_files_to_preserve`; these files remain user-owned and are
 never added to the installation receipt. A file whose declared `name` is not
-one of the four router-managed roles is left byte-for-byte and mode-for-mode
+one of the two router-managed identities is left byte-for-byte and mode-for-mode
 unchanged. Invalid or unsafe files fail closed because the installer cannot
 prove that they are compatible.
 
-A standalone file declaring `researcher`, `reviewer`,
-`architecture_explorer`, or `interface_designer` conflicts with the
+A standalone file declaring `researcher` or `reviewer` conflicts with the
 Hook-managed definition and blocks both `plan` and `install`. The installer
 does not automatically rename, disable, adopt, or back up that file. Change its
 declared `name`, or move it out of the active `agents` tree, then rerun `plan`.
@@ -344,8 +339,8 @@ Failures raised before planning, and installation, update, rollback, or
 uninstall violations, exit `1` with text on stderr; callers must not assume that
 every nonzero result contains JSON.
 
-The installer adds this V2 table and description-only declarations for the four
-managed roles to `config.toml`, adds the three command-hook groups to
+The installer adds this V2 table and description-only declarations for the two
+managed identities to `config.toml`, adds the three command-hook groups to
 `hooks.json`, and writes a private receipt under
 `codex-subagent-router/installation.json`:
 
@@ -377,10 +372,17 @@ The dry run is read-only and reports `hooks_action`,
 `hook_events_to_update`, and `conflicts`. The first update implementation is
 deliberately narrow: it only replaces the command path in Hook groups that the
 installation receipt proves were created by this installer. It does not
-modify `config.toml`, MultiAgent V2 settings, managed role declarations,
+modify `config.toml`, MultiAgent V2 settings, managed identity declarations,
 standalone agent files, Hook matchers, timeouts, or user-owned compatible Hook
 groups. A broader Hook specification change requires an explicit future
 migration instead of being silently adopted.
+
+The current managed roster contains only `researcher` and `reviewer`. An
+installation created by an older package with additional managed identities
+has a different identity and Hook specification. `status` and `doctor` report
+that installation as modified, while `update` deliberately refuses to migrate
+it. Rollback that installation, then install the current roster in a fresh
+session.
 
 The old launcher may already be missing, provided the receipt and managed Hook
 groups are otherwise healthy and the new launcher is an absolute regular
@@ -481,7 +483,7 @@ report = doctor_user_config(codex_home, Path("/explicit/project"))
 removed = rollback_user_config(codex_home)
 ```
 
-Policy rationale and protocol evidence are documented in
+Policy contracts and protocol evidence are documented in
 [`docs/routing-policy.md`](https://github.com/dzshzx/codex-subagent-router/blob/HEAD/docs/routing-policy.md),
 [`docs/role-contracts.md`](https://github.com/dzshzx/codex-subagent-router/blob/HEAD/docs/role-contracts.md), and
 [`docs/research/`](https://github.com/dzshzx/codex-subagent-router/tree/HEAD/docs/research/).
@@ -513,7 +515,7 @@ git diff --check
 4. `SessionStart` routing guidance and `SubagentStart` role contracts. **Complete.**
 5. Isolated end-to-end hook probes. **Complete.**
 6. User-level plan/install/update/status/doctor/uninstall lifecycle. **Complete.**
-7. Dynamic model/effort guidance, generated skill document, and offline usage report. **Complete.**
+7. Model/effort option catalogs, generated skill document, and offline usage report. **Complete.**
 
 ## Prohibitions
 

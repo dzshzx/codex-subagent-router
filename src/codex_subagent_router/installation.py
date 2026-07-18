@@ -38,6 +38,9 @@ from ._installation_files import (
     installation_modifications_allow_rollback as _installation_modifications_allow_rollback,
 )
 from ._installation_files import (
+    installation_specification_issues as _installation_specification_issues,
+)
+from ._installation_files import (
     installation_state_path_violation as _installation_state_path_violation,
 )
 from ._installation_files import (
@@ -724,7 +727,13 @@ def installation_status(codex_home: Path) -> InstallationStatus:
             state=InstallationState.INCOMPLETE,
             details=("installation operation is in progress",),
         )
-    status = _installation_status_without_lock(codex_home)
+    # Public health includes compatibility with the package currently running.
+    # Internal update and rollback paths use receipt health so a legacy but
+    # unchanged installation can still reach its explicit migration boundary.
+    status = _installation_status_without_lock(
+        codex_home,
+        compare_current_specification=True,
+    )
     if status.state not in (InstallationState.INSTALLED, InstallationState.MODIFIED):
         return status
     standalone_inspection = _inspect_standalone_agents(codex_home)
@@ -749,7 +758,11 @@ def doctor_user_config(
     )
 
 
-def _installation_status_without_lock(codex_home: Path) -> InstallationStatus:
+def _installation_status_without_lock(
+    codex_home: Path,
+    *,
+    compare_current_specification: bool = False,
+) -> InstallationStatus:
     installation_directory = codex_home / _INSTALLATION_DIRECTORY
     transaction_path = installation_directory / _TRANSACTION_NAME
     manifest_path = installation_directory / _MANIFEST_NAME
@@ -788,6 +801,11 @@ def _installation_status_without_lock(codex_home: Path) -> InstallationStatus:
         if not _installation_manifest_is_valid(manifest, "installed"):
             raise TypeError("installation manifest is invalid")
         details = _installation_modifications(codex_home, manifest)
+        specification_details = (
+            _installation_specification_issues(manifest)
+            if compare_current_specification
+            else []
+        )
         launcher_details = _launcher_issues(manifest)
     except (
         json.JSONDecodeError,
@@ -806,8 +824,12 @@ def _installation_status_without_lock(codex_home: Path) -> InstallationStatus:
     # problem, not a user modification; it must not block rollback.
     return InstallationStatus(
         codex_home=codex_home,
-        state=(InstallationState.MODIFIED if details else InstallationState.INSTALLED),
-        details=(*details, *launcher_details),
+        state=(
+            InstallationState.MODIFIED
+            if details or specification_details
+            else InstallationState.INSTALLED
+        ),
+        details=(*details, *specification_details, *launcher_details),
     )
 
 

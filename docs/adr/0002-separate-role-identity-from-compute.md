@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-07-13
+- Updated: 2026-07-18
 
 ## Context
 
@@ -12,16 +13,19 @@ different compute profiles without multiplying role files.
 
 ## Decision
 
-Declare managed roles by name and description without a role `config_file`.
+Declare managed identities by name and description without a role `config_file`.
 Inject their stable behavior through `SubagentStart`. Select model and reasoning
 effort explicitly on each spawn from the routing policy.
 
-The managed roles are:
+The managed identities are:
 
 - `researcher`
 - `reviewer`
-- `architecture_explorer`
-- `interface_designer`
+
+Codex's built-in `default`, `explorer`, and `worker` identities remain
+platform-owned. Architecture scans and interface alternatives are task briefs
+or methods applied to those identities until repeated usage demonstrates a
+distinct persistent contract.
 
 Role contracts contain behavior only. The executable compute ladder remains in
 `policy.py`.
@@ -44,5 +48,9 @@ Role contracts contain behavior only. The executable compute ladder remains in
   Codex version.
 - A role-by-model matrix duplicates behavior and increases maintenance cost.
 - A generic custom `explorer` would override the narrower built-in role.
+- Architecture exploration and interface design currently vary by task brief,
+  not by persistent identity.
+- Custom worker, tester, and debugger identities duplicate the built-in worker
+  or a method applied within a task.
 - External SDK threads lose native subagent-tree and collaboration semantics.
 - A local Codex patch would add ongoing upgrade and rollback risk.

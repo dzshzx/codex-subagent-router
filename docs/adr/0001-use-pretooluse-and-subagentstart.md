@@ -32,8 +32,8 @@ protocol boundary rejects unknown fields and wrong event discriminators.
 - Invalid spawns can be stopped before a child exists when the hook runs
   successfully.
 - Role context reaches the child's first request as developer context.
-- Root startup receives an exact view of the current managed roles and compute
-  ladder without duplicating their executable sources.
+- Root startup receives an exact view of the current managed identities and
+  compute ladder without duplicating their executable sources.
 - Routing validation and role behavior do not race as concurrent input rewrites.
 - `SubagentStart` failures allow a child to continue without injected context.
 - Command-hook failures are fail-open, so the validator is a guardrail rather

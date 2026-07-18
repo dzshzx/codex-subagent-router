@@ -20,7 +20,7 @@ def test_cli_render_skill_prints_the_generated_document() -> None:
 
     assert actual.returncode == 0
     assert actual.stdout.startswith("---\nname: codex-subagent-routing\n")
-    assert "## Dynamic route planning" in actual.stdout
+    assert "## Route options" in actual.stdout
     assert "do not edit by hand" in actual.stdout
 
 

@@ -25,8 +25,8 @@ from .installation import (
     update_user_config,
 )
 from .policy import (
-    EffortGuide,
-    ModelGuide,
+    EffortOption,
+    ModelOption,
     PolicyViolation,
     RoutedCompute,
     RoutingPolicy,
@@ -58,8 +58,8 @@ from .usage_report import (
 from .validator import validate_pre_tool_use
 
 __all__ = (
-    "EffortGuide",
-    "ModelGuide",
+    "EffortOption",
+    "ModelOption",
     "PolicyViolation",
     "PermissionMode",
     "PreToolUseDenyOutput",

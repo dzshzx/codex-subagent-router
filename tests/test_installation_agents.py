@@ -115,12 +115,7 @@ def test_plan_ignores_a_disabled_standalone_agent_definition(tmp_path: Path) -> 
     )
 
     assert actual.conflicts == ()
-    assert actual.roles_to_add == (
-        "researcher",
-        "reviewer",
-        "architecture_explorer",
-        "interface_designer",
-    )
+    assert actual.roles_to_add == ("researcher", "reviewer")
 
 
 def test_plan_reports_each_standalone_managed_role_conflict(

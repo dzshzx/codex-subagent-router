@@ -40,10 +40,10 @@ tool_namespace = "agents"
 
 The installer owns this table when it is absent. If the exact required values
 already exist, it preserves the user-owned table and only installs missing
-managed roles. A partial table, a conflicting required value, or a non-table
-path fails closed. Because Codex 0.144.4 rejects `agents.max_threads` with V2,
-that combination also fails during planning. Status requires the same V2
-compatibility. If user-owned values later change, status reports `modified`,
+managed identities. A partial table, a conflicting required value, or a
+non-table path fails closed. Because Codex 0.144.4 rejects `agents.max_threads`
+with V2, that combination also fails during planning. Status requires the same
+V2 compatibility. If user-owned values later change, status reports `modified`,
 while rollback preserves those values and removes only the intact router-owned
 configuration. The V2 table itself is removed only when the installer added it.
 

@@ -2,14 +2,15 @@
 
 - Status: Accepted
 - Date: 2026-07-13
+- Updated: 2026-07-18
 
 ## Context
 
-The router is useful only when four description-only roles and three command
-hook groups are present in the user's Codex configuration. Codex 0.144.1 loads
-user roles from `$CODEX_HOME/config.toml` and command hooks from the adjacent
-`hooks.json`. It provides no ordinary CLI command that safely installs both
-files as one operation.
+The router is useful only when its description-only managed identities and
+three command hook groups are present in the user's Codex configuration. Codex
+0.144.1 loads user roles from `$CODEX_HOME/config.toml` and command hooks from
+the adjacent `hooks.json`. It provides no ordinary CLI command that safely
+installs both files as one operation.
 
 The files are user-owned and may already contain unrelated configuration. A
 process can fail after replacing one file but before replacing the other. A
@@ -53,6 +54,13 @@ configuration is not V2-compatible, while rollback remains allowed when that
 is the only drift. This requires a clean migration without trapping the old
 installation in a non-rollbackable state.
 
+Public status also compares the receipt's managed identity and Hook
+specification with the current executable sources. A legacy specification is
+reported as `modified`, and launcher-only update refuses to migrate it.
+Rollback still validates the unchanged installation against its own internally
+consistent receipt so the user can remove it before reinstalling the current
+specification.
+
 The transaction is recoverable rather than falsely described as cross-file
 atomic. If an installation reports a filesystem error in-process, restore both
 files from the in-memory snapshots. If its persisted journal remains after an
@@ -84,7 +92,7 @@ while preserving those user values.
 Treat active standalone agent files below the explicit user Codex home's
 `agents` tree as inspected but non-owned configuration. Planning reports their
 relative paths as files to preserve. Invalid or unsafe files and declarations
-whose `name` claims a router-managed role fail closed; other names coexist
+whose `name` claims a router-managed identity fail closed; other names coexist
 without being modified. Do not automatically rename, disable, adopt, snapshot,
 or record standalone files in the receipt. Public status reports a conflicting
 standalone file that appears after installation, while rollback deliberately

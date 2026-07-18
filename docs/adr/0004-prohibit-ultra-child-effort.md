@@ -34,8 +34,8 @@ fan-out inside the child's budget.
 
 ## Consequences
 
-- The policy seam and startup guidance must continue to distinguish prohibited
-  child `ultra` from unknown effort names.
+- The policy seam must continue to distinguish prohibited child `ultra` from
+  unknown effort names.
 - A future Codex release changing Ultra's documented semantics does not silently
   relax this rule. Reconsideration requires explicit policy and probe evidence.
 - Denial is observable before child creation when the command hook runs; it is

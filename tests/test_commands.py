@@ -103,10 +103,10 @@ def test_startup_session_document_returns_derived_routing_guidance() -> None:
 
     assert actual["hookSpecificOutput"]["hookEventName"] == "SessionStart"
     context = actual["hookSpecificOutput"]["additionalContext"]
-    assert "Choose model by task capability" in context
+    assert "Models:" in context
     assert "gpt-5.6-luna" in context
-    assert "Choose reasoning_effort independently" in context
-    assert "Child effort ultra is prohibited." in context
+    assert "Reasoning efforts:" in context
+    assert "max: Maximum reasoning depth." in context
 
 
 @pytest.mark.parametrize("source", ("resume", "clear", "compact"))
@@ -195,7 +195,7 @@ def test_command_process_writes_a_denial_only_to_stdout() -> None:
             "session-start",
             _session_start_document("startup"),
             "SessionStart",
-            "Child effort ultra is prohibited.",
+            "Prohibited child reasoning efforts: ultra.",
         ),
         (
             "subagent-start",

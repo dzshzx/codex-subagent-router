@@ -5,11 +5,9 @@
 
 ## Context
 
-The routing goal is fitness, not frugality: every child should run on the
-profile whose purpose matches the task — neither inheriting the parent
-session's high compute by default nor starving hard work on a cheap
-profile. The guidance must stay useful independent of any specific
-workflow, so role identities cannot be a prerequisite for routing.
+The routing contract requires explicit model and effort values on every routed
+child. Its option catalogs remain independent of any specific workflow, so role
+identities are not a prerequisite for routing.
 
 The policy source now feeds two derived surfaces beyond the hooks: a
 generated agent-skill document (`render-skill`) and an offline usage report
@@ -41,7 +39,7 @@ dispatch-guidance sources:
   document plus the minimal user-owned configuration: the exact V2 table
   from ADR-0005. No hooks, no trust flow, no deny, no `SubagentStart`
   contract injection. Routing is by model and effort; `agent_type` is
-  optional. The four description-only inline roles are an optional layer
+  optional. The two description-only inline identities are an optional layer
   for workflows that use them — when declared, children receive the role
   description and the parent's task packet only.
 - **Tier B — managed.** The full hook deployment specified by ADR-0001.
@@ -85,7 +83,7 @@ role identity from compute is non-negotiable.
   violation-rate data justifies the recurring cost today.
 - Retiring the enforcement surface entirely: it is verified capability, and
   observation may prove it necessary.
-- Embedding all four role contracts in the skill document for parents to
+- Embedding both managed identity contracts in the skill document for parents to
   copy into task packets: repeated token cost per dispatch; the native
   channel should be probed first.
 - Committing a rendered skill snapshot to this repository: it would be a

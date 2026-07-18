@@ -356,6 +356,53 @@ def installation_modifications(
     return details
 
 
+def installation_specification_issues(
+    manifest: dict[str, object],
+) -> list[str]:
+    """Report a healthy receipt whose managed specification is no longer current."""
+    config_manifest = cast(dict[str, object], manifest["config"])
+    installed_roles = cast(dict[str, str], config_manifest["expected_roles"])
+    current_roles = {
+        contract.agent_type: contract.description for contract in role_contracts()
+    }
+    hooks_manifest = cast(dict[str, object], manifest["hooks"])
+    installed_groups = cast(
+        dict[str, list[object]],
+        hooks_manifest["expected_groups"],
+    )
+    current_groups = managed_hook_groups(("<launcher>",))
+    if installed_roles == current_roles and _normalized_hook_specification(
+        installed_groups
+    ) == _normalized_hook_specification(current_groups):
+        return []
+    return [
+        "installed managed identity or Hook specification differs from the "
+        "current package; roll back before reinstalling"
+    ]
+
+
+def _normalized_hook_specification(
+    groups: dict[str, list[object]],
+) -> dict[str, list[object]] | None:
+    normalized = cast(
+        dict[str, list[object]],
+        json.loads(json.dumps(groups)),
+    )
+    try:
+        for event_groups in normalized.values():
+            for group in event_groups:
+                hooks = cast(list[object], cast(dict[str, object], group)["hooks"])
+                for hook in hooks:
+                    hook_document = cast(dict[str, object], hook)
+                    argv = shlex.split(cast(str, hook_document["command"]))
+                    if len(argv) < 2:
+                        return None
+                    hook_document["command"] = shlex.join(("<launcher>", argv[-1]))
+    except (KeyError, TypeError, ValueError):
+        return None
+    return normalized
+
+
 def installation_snapshot_is_healthy(
     codex_home: Path,
     manifest_content: bytes,

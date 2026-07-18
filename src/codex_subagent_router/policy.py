@@ -8,29 +8,28 @@ class PolicyViolation(ValueError):
 
 
 @dataclass(frozen=True, slots=True)
-class ModelGuide:
-    """One child model and the task capability it is intended to provide."""
+class ModelOption:
+    """One supported child model and its description."""
 
     model: str
-    purpose: str
+    description: str
 
 
 @dataclass(frozen=True, slots=True)
-class EffortGuide:
-    """One reasoning depth and the task conditions that justify it."""
+class EffortOption:
+    """One supported reasoning effort and its description."""
 
     reasoning_effort: str
-    purpose: str
-    requires_concrete_reason: bool
+    description: str
 
 
 @dataclass(frozen=True, slots=True)
 class RoutingPolicy:
-    """Independent model and effort choices plus dynamic selection guidance."""
+    """Supported model and effort options."""
 
-    models: tuple[ModelGuide, ...]
-    efforts: tuple[EffortGuide, ...]
-    rules: tuple[str, ...]
+    models: tuple[ModelOption, ...]
+    efforts: tuple[EffortOption, ...]
+    prohibited_efforts: tuple[str, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,88 +42,52 @@ class RoutedCompute:
 
 _ROUTING_POLICY = RoutingPolicy(
     models=(
-        ModelGuide(
+        ModelOption(
             model="gpt-5.6-luna",
-            purpose=(
-                "Simple, low-risk, self-contained lookup, enumeration, "
-                "and mechanical extraction."
-            ),
+            description="Lightweight model.",
         ),
-        ModelGuide(
+        ModelOption(
             model="gpt-5.6-terra",
-            purpose=(
-                "Routine bounded execution, focused code changes, "
-                "cross-file reading, synthesis, and analysis."
-            ),
+            description="General-purpose model.",
         ),
-        ModelGuide(
+        ModelOption(
             model="gpt-5.6-sol",
-            purpose=(
-                "Complex multi-step implementation, critical review, "
-                "adjudication, hard debugging, and high-risk work."
-            ),
+            description="Highest-capability model.",
         ),
     ),
     efforts=(
-        EffortGuide(
+        EffortOption(
             reasoning_effort="low",
-            purpose=(
-                "Straightforward work with a clear path, few steps, and "
-                "cheap verification."
-            ),
-            requires_concrete_reason=False,
+            description="Low reasoning depth.",
         ),
-        EffortGuide(
+        EffortOption(
             reasoning_effort="medium",
-            purpose=(
-                "Routine multi-step work with a known approach and normal verification."
-            ),
-            requires_concrete_reason=False,
+            description="Medium reasoning depth.",
         ),
-        EffortGuide(
+        EffortOption(
             reasoning_effort="high",
-            purpose=(
-                "Ambiguous, cross-cutting, risk-sensitive, or verification-heavy work."
-            ),
-            requires_concrete_reason=False,
+            description="High reasoning depth.",
         ),
-        EffortGuide(
+        EffortOption(
             reasoning_effort="xhigh",
-            purpose="Exceptionally hard reasoning after high is insufficient.",
-            requires_concrete_reason=True,
+            description="Extra-high reasoning depth.",
         ),
-        EffortGuide(
+        EffortOption(
             reasoning_effort="max",
-            purpose=(
-                "Explicit highest-quality work after lower effort is insufficient."
-            ),
-            requires_concrete_reason=True,
+            description="Maximum reasoning depth.",
         ),
     ),
-    rules=(
-        "Choose model from task capability, risk, and type: Luna for simple, "
-        "low-risk, self-contained work; Terra for routine execution and "
-        "analysis; Sol for complex implementation, critical review, hard "
-        "debugging, and high-risk work.",
-        "Choose reasoning_effort independently from reasoning depth, ambiguity, "
-        "and verification needs.",
-        "A higher effort does not compensate for a model that lacks the required "
-        "capability.",
-        "Use the lowest-capability model and lowest effort that remain credible "
-        "for the task.",
-        "Use xhigh or max only when the task requires it and state a concrete reason.",
-        "Child effort ultra is prohibited.",
-    ),
+    prohibited_efforts=("ultra",),
 )
 _SUPPORTED_MODELS = frozenset(guide.model for guide in _ROUTING_POLICY.models)
 _SUPPORTED_CHILD_EFFORTS = frozenset(
     guide.reasoning_effort for guide in _ROUTING_POLICY.efforts
 )
-_PROHIBITED_CHILD_EFFORT = "ultra"
+_PROHIBITED_CHILD_EFFORTS = frozenset(_ROUTING_POLICY.prohibited_efforts)
 
 
 def routing_policy() -> RoutingPolicy:
-    """Return independent model and effort choices with selection guidance."""
+    """Return supported model and effort options."""
 
     return _ROUTING_POLICY
 
@@ -134,9 +97,9 @@ def validate_routed_compute(model: str, reasoning_effort: str) -> RoutedCompute:
 
     if model not in _SUPPORTED_MODELS:
         raise PolicyViolation(f"unsupported child model: {model}")
-    if reasoning_effort == _PROHIBITED_CHILD_EFFORT:
+    if reasoning_effort in _PROHIBITED_CHILD_EFFORTS:
         raise PolicyViolation(
-            f"child reasoning effort {_PROHIBITED_CHILD_EFFORT!r} is prohibited"
+            f"child reasoning effort {reasoning_effort!r} is prohibited"
         )
     if reasoning_effort not in _SUPPORTED_CHILD_EFFORTS:
         raise PolicyViolation(f"unsupported child reasoning effort: {reasoning_effort}")

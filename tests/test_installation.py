@@ -16,6 +16,7 @@ from codex_subagent_router import (
     InstallationViolation,
     RollbackFileAction,
     RollbackResult,
+    doctor_user_config,
     install_user_config,
     installation_status,
     plan_user_installation,
@@ -33,6 +34,54 @@ def _hook_executable(tmp_path: Path) -> Path:
     return executable
 
 
+def _rewrite_as_legacy_four_identity_installation(
+    installed: InstallationResult,
+) -> None:
+    legacy_roles = {
+        "architecture_explorer": (
+            "Read-only architecture explorer for broad codebase scans and "
+            "deepening opportunities."
+        ),
+        "interface_designer": (
+            "Read-only module-interface designer for independent API and "
+            "module-shape alternatives."
+        ),
+    }
+    config = installed.config_path.read_text()
+    for role_name, description in legacy_roles.items():
+        config += f'\n[agents.{role_name}]\ndescription = "{description}"\n'
+    installed.config_path.write_text(config)
+    manifest = json.loads(installed.manifest_path.read_text())
+    manifest["config"]["managed_block"] = config
+    manifest["config"]["expected_roles"].update(legacy_roles)
+    manifest["config"]["installed_sha256"] = hashlib.sha256(config.encode()).hexdigest()
+    installed.manifest_path.write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n"
+    )
+    _rewrite_installed_subagent_matcher(
+        installed,
+        "researcher|reviewer|architecture_explorer|interface_designer",
+    )
+
+
+def _rewrite_installed_subagent_matcher(
+    installed: InstallationResult,
+    matcher: str,
+) -> None:
+    hooks = json.loads(installed.hooks_path.read_text())
+    hooks["hooks"]["SubagentStart"][0]["matcher"] = matcher
+    hooks_content = (json.dumps(hooks, ensure_ascii=False, indent=2) + "\n").encode()
+    installed.hooks_path.write_bytes(hooks_content)
+
+    manifest = json.loads(installed.manifest_path.read_text())
+    for group_source in ("managed_groups", "expected_groups"):
+        manifest["hooks"][group_source]["SubagentStart"][0]["matcher"] = matcher
+    manifest["hooks"]["installed_sha256"] = hashlib.sha256(hooks_content).hexdigest()
+    installed.manifest_path.write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n"
+    )
+
+
 def test_empty_codex_home_plan_creates_managed_roles_and_hooks(
     tmp_path: Path,
 ) -> None:
@@ -44,12 +93,7 @@ def test_empty_codex_home_plan_creates_managed_roles_and_hooks(
         codex_home=tmp_path,
         config_action=InstallationFileAction.CREATE,
         hooks_action=InstallationFileAction.CREATE,
-        roles_to_add=(
-            "researcher",
-            "reviewer",
-            "architecture_explorer",
-            "interface_designer",
-        ),
+        roles_to_add=("researcher", "reviewer"),
         hook_events_to_add=("PreToolUse", "SessionStart", "SubagentStart"),
         conflicts=(),
         requires_hook_review=True,
@@ -215,6 +259,61 @@ def test_update_rejects_non_launcher_command_changes(tmp_path: Path) -> None:
         )
 
 
+def test_legacy_identity_roster_requires_migration_and_remains_rollbackable(
+    tmp_path: Path,
+) -> None:
+    hook_executable = _hook_executable(tmp_path)
+    installed = install_user_config(tmp_path, (str(hook_executable),))
+    _rewrite_as_legacy_four_identity_installation(installed)
+    project_directory = tmp_path / "project"
+    project_directory.mkdir()
+    migration_detail = (
+        "installed managed identity or Hook specification differs from the "
+        "current package; roll back before reinstalling"
+    )
+
+    status = installation_status(tmp_path)
+    doctor = doctor_user_config(tmp_path, project_directory)
+    update_plan = plan_user_update(tmp_path, (str(hook_executable),))
+    rolled_back = rollback_user_config(tmp_path)
+
+    assert status == InstallationStatus(
+        codex_home=tmp_path,
+        state=InstallationState.MODIFIED,
+        details=(migration_detail,),
+    )
+    assert doctor.installation_state is InstallationState.MODIFIED
+    assert doctor.healthy is False
+    assert doctor.issues == (migration_detail,)
+    assert update_plan.conflicts == (
+        "installed Hook specification requires an explicit migration",
+    )
+    assert rolled_back == RollbackResult(
+        codex_home=tmp_path,
+        config_action=RollbackFileAction.REMOVED,
+        hooks_action=RollbackFileAction.REMOVED,
+    )
+
+
+def test_status_reports_a_legacy_hook_specification(tmp_path: Path) -> None:
+    installed = install_user_config(
+        tmp_path,
+        (str(_hook_executable(tmp_path)),),
+    )
+    _rewrite_installed_subagent_matcher(installed, "legacy-matcher")
+
+    actual = installation_status(tmp_path)
+
+    assert actual == InstallationStatus(
+        codex_home=tmp_path,
+        state=InstallationState.MODIFIED,
+        details=(
+            "installed managed identity or Hook specification differs from the "
+            "current package; roll back before reinstalling",
+        ),
+    )
+
+
 def test_update_preserves_unrelated_hooks_added_after_installation(
     tmp_path: Path,
 ) -> None:
@@ -272,11 +371,7 @@ description = "Read-only reviewer for one bounded diff axis."
         codex_home=tmp_path,
         config_action=InstallationFileAction.UPDATE,
         hooks_action=InstallationFileAction.UPDATE,
-        roles_to_add=(
-            "researcher",
-            "architecture_explorer",
-            "interface_designer",
-        ),
+        roles_to_add=("researcher",),
         hook_events_to_add=("PreToolUse", "SessionStart", "SubagentStart"),
         conflicts=(),
         requires_hook_review=True,
@@ -296,12 +391,6 @@ description = "Primary-source researcher for external documentation, APIs, speci
 
 [agents.reviewer]
 description = "Read-only reviewer for one bounded diff axis."
-
-[agents.architecture_explorer]
-description = "Read-only architecture explorer for broad codebase scans and deepening opportunities."
-
-[agents.interface_designer]
-description = "Read-only module-interface designer for independent API and module-shape alternatives."
 """
     )
     hook_command = (str(_hook_executable(tmp_path)),)
@@ -334,11 +423,7 @@ config_file = "./agents/reviewer.toml"
         (str(tmp_path / "bin" / "codex-subagent-router-hook"),),
     )
 
-    assert actual.roles_to_add == (
-        "researcher",
-        "architecture_explorer",
-        "interface_designer",
-    )
+    assert actual.roles_to_add == ("researcher",)
     assert actual.conflicts == (
         "managed role 'reviewer' already exists with incompatible configuration",
     )
@@ -459,12 +544,7 @@ description = "Read-only reviewer for one bounded diff axis."
         "hide_spawn_agent_metadata": False,
         "tool_namespace": "agents",
     }
-    assert set(config["agents"]) == {
-        "researcher",
-        "reviewer",
-        "architecture_explorer",
-        "interface_designer",
-    }
+    assert set(config["agents"]) == {"researcher", "reviewer"}
 
 
 def test_install_into_empty_codex_home_writes_private_managed_configuration(
@@ -499,18 +579,6 @@ def test_install_into_empty_codex_home_writes_private_managed_configuration(
             )
         },
         "reviewer": {"description": "Read-only reviewer for one bounded diff axis."},
-        "architecture_explorer": {
-            "description": (
-                "Read-only architecture explorer for broad codebase scans and "
-                "deepening opportunities."
-            )
-        },
-        "interface_designer": {
-            "description": (
-                "Read-only module-interface designer for independent API and "
-                "module-shape alternatives."
-            )
-        },
     }
     hooks = json.loads((tmp_path / "hooks.json").read_text())
     assert hooks == {
@@ -541,9 +609,7 @@ def test_install_into_empty_codex_home_writes_private_managed_configuration(
             ],
             "SubagentStart": [
                 {
-                    "matcher": (
-                        "researcher|reviewer|architecture_explorer|interface_designer"
-                    ),
+                    "matcher": "researcher|reviewer",
                     "hooks": [
                         {
                             "type": "command",

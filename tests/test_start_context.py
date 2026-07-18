@@ -51,7 +51,14 @@ def _session_start(source: str) -> SessionStartInput:
     return parsed
 
 
-def test_managed_role_contracts_match_the_project_roles() -> None:
+def test_managed_identity_roster_contains_only_recurring_distinct_work() -> None:
+    assert tuple(contract.agent_type for contract in role_contracts()) == (
+        "researcher",
+        "reviewer",
+    )
+
+
+def test_managed_identity_contracts_match_the_project_identities() -> None:
     assert role_contracts() == (
         RoleContract(
             agent_type="researcher",
@@ -83,39 +90,6 @@ Complete when the question is answered with enough evidence for a later implemen
 
 Standards and Spec use separate reviewer instances; the task brief defines the temporary axis.""",
         ),
-        RoleContract(
-            agent_type="architecture_explorer",
-            description=(
-                "Read-only architecture explorer for broad codebase scans and "
-                "deepening opportunities."
-            ),
-            additional_context="""You are the architecture explorer for this delegated codebase scan.
-
-- Read relevant domain context and architecture decisions before judging the design.
-- Trace responsibilities, seams, adapters, invariants, and dependency direction across modules.
-- Identify deepening opportunities with concrete file evidence and downstream leverage.
-- Return candidates and their trade-offs only.
-- Do not produce the final report, design a replacement interface, or implement a refactor.
-
-This role is broader than the built-in explorer used for specific, well-scoped questions.""",
-        ),
-        RoleContract(
-            agent_type="interface_designer",
-            description=(
-                "Read-only module-interface designer for independent API and "
-                "module-shape alternatives."
-            ),
-            additional_context="""You are the interface designer for one independent module or API alternative.
-
-- Generate one genuinely distinct design from the supplied technical brief.
-- State invariants, ordering, error modes, usage, and hidden implementation.
-- Define dependency adapters and explain the design's trade-offs.
-- Use project domain vocabulary and respect existing architecture decisions.
-- Stay independent of parallel designs so the alternatives differ materially.
-- Do not edit files or implement the design.
-
-The task brief supplies the constraint that distinguishes this alternative.""",
-        ),
     )
 
 
@@ -137,14 +111,24 @@ Standards and Spec use separate reviewer instances; the task brief defines the t
 
 @pytest.mark.parametrize(
     "agent_type",
-    ("researcher", "reviewer", "architecture_explorer", "interface_designer"),
+    ("researcher", "reviewer"),
 )
-def test_every_managed_role_has_subagent_start_context(agent_type: str) -> None:
+def test_every_managed_identity_has_subagent_start_context(agent_type: str) -> None:
     assert subagent_start_context(_subagent_start(agent_type)) is not None
 
 
-@pytest.mark.parametrize("agent_type", ("worker", "explorer", "custom_role"))
-def test_subagent_start_does_not_override_unmanaged_roles(agent_type: str) -> None:
+@pytest.mark.parametrize(
+    "agent_type",
+    (
+        "default",
+        "worker",
+        "explorer",
+        "architecture_explorer",
+        "interface_designer",
+        "custom_role",
+    ),
+)
+def test_subagent_start_does_not_override_unmanaged_identities(agent_type: str) -> None:
     assert subagent_start_context(_subagent_start(agent_type)) is None
 
 
@@ -156,25 +140,25 @@ def test_session_start_injects_routing_guidance_derived_from_project_sources() -
 
 Choose every routed child explicitly with model and reasoning_effort.
 
-Managed roles:
+Managed identities:
 - researcher: Primary-source researcher for external documentation, APIs, specifications, and upstream code.
 - reviewer: Read-only reviewer for one bounded diff axis.
-- architecture_explorer: Read-only architecture explorer for broad codebase scans and deepening opportunities.
-- interface_designer: Read-only module-interface designer for independent API and module-shape alternatives.
 
-Choose model by task capability:
-- gpt-5.6-luna: Simple, low-risk, self-contained lookup, enumeration, and mechanical extraction.
-- gpt-5.6-terra: Routine bounded execution, focused code changes, cross-file reading, synthesis, and analysis.
-- gpt-5.6-sol: Complex multi-step implementation, critical review, adjudication, hard debugging, and high-risk work.
+Models:
+- gpt-5.6-luna: Lightweight model.
+- gpt-5.6-terra: General-purpose model.
+- gpt-5.6-sol: Highest-capability model.
 
-Choose reasoning_effort independently by reasoning depth:
-- low: Straightforward work with a clear path, few steps, and cheap verification.
-- medium: Routine multi-step work with a known approach and normal verification.
-- high: Ambiguous, cross-cutting, risk-sensitive, or verification-heavy work.
-- xhigh: Exceptionally hard reasoning after high is insufficient. State a concrete reason.
-- max: Explicit highest-quality work after lower effort is insufficient. State a concrete reason.
+Reasoning efforts:
+- low: Low reasoning depth.
+- medium: Medium reasoning depth.
+- high: High reasoning depth.
+- xhigh: Extra-high reasoning depth.
+- max: Maximum reasoning depth.
 
-Choose model from task capability, risk, and type: Luna for simple, low-risk, self-contained work; Terra for routine execution and analysis; Sol for complex implementation, critical review, hard debugging, and high-risk work. Choose reasoning_effort independently from reasoning depth, ambiguity, and verification needs. A higher effort does not compensate for a model that lacks the required capability. Use the lowest-capability model and lowest effort that remain credible for the task. Use xhigh or max only when the task requires it and state a concrete reason. Child effort ultra is prohibited. Set agent_type when a suitable declared role exists; omit it otherwise. On MultiAgent V2, also set task_name (lowercase letters, digits, and underscores only) and fork_turns="none" for independent work or a positive integer string for limited recent context; do not use full-history all with explicit routing. On stable MultiAgent V1, leave fork_context false or omitted; do not spawn full-history forks with explicit routing. Do not omit routed fields or silently rewrite them."""
+Prohibited child reasoning efforts: ultra.
+
+Set agent_type when a suitable declared role exists; omit it otherwise. On MultiAgent V2, also set task_name (lowercase letters, digits, and underscores only) and fork_turns="none" for independent work or a positive integer string for limited recent context; do not use full-history all with explicit routing. On stable MultiAgent V1, leave fork_context false or omitted; do not spawn full-history forks with explicit routing. Do not omit routed fields or silently rewrite them."""
     )
 
 

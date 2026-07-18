@@ -13,8 +13,7 @@ from .validator import routed_spawn_guidance_rules
 _SKILL_NAME = "codex-subagent-routing"
 _SKILL_DESCRIPTION = (
     "Route Codex subagent spawns with explicit model and reasoning effort. "
-    "Use when delegating work to subagents, choosing task-aware compute, "
-    "parallelizing reads or reviews, or writing a child task packet."
+    "Use when delegating work, parallelizing tasks, or writing a child task packet."
 )
 
 
@@ -29,8 +28,8 @@ def render_skill_markdown() -> str:
         _frontmatter(),
         _header(),
         _delegation_section(),
-        _dynamic_routing_section(),
-        _role_section(),
+        _route_options_section(),
+        _identity_section(),
         _spawn_contract_section(),
         _task_packet_section(),
         _result_contract_section(),
@@ -63,40 +62,38 @@ def _delegation_section() -> str:
     )
 
 
-def _dynamic_routing_section() -> str:
+def _route_options_section() -> str:
     policy = routing_policy()
     model_rows = "\n".join(
-        f"| {guide.model} | {guide.purpose} |" for guide in policy.models
+        f"| {option.model} | {option.description} |" for option in policy.models
     )
     effort_rows = "\n".join(
-        "| "
-        f"{guide.reasoning_effort} | {guide.purpose} | "
-        f"{'yes' if guide.requires_concrete_reason else 'no'} |"
-        for guide in policy.efforts
+        f"| {option.reasoning_effort} | {option.description} |"
+        for option in policy.efforts
     )
-    rules = "\n".join(f"- {rule}" for rule in policy.rules)
+    prohibited_efforts = ", ".join(policy.prohibited_efforts)
     return (
-        "## Dynamic route planning\n\n"
-        "Choose model by the capability the task requires:\n\n"
-        "| Model | Use for |\n|---|---|\n"
+        "## Route options\n\n"
+        "Models:\n\n"
+        "| Model | Description |\n|---|---|\n"
         f"{model_rows}\n\n"
-        "Choose reasoning_effort independently by reasoning depth:\n\n"
-        "| Effort | Use for | Concrete reason required |\n|---|---|---|\n"
+        "Reasoning efforts:\n\n"
+        "| Effort | Description |\n|---|---|\n"
         f"{effort_rows}\n\n"
-        f"Decision rules:\n{rules}"
+        f"Prohibited child reasoning efforts: {prohibited_efforts}."
     )
 
 
-def _role_section() -> str:
-    roles = "\n".join(
+def _identity_section() -> str:
+    identities = "\n".join(
         f"- {contract.agent_type}: {contract.description}"
         for contract in role_contracts()
     )
     return (
-        "## Managed roles (optional layer)\n\n"
-        "Use these agent_type values only when the roles are declared in "
+        "## Managed identities (optional layer)\n\n"
+        "Use these agent_type values only when the identities are declared in "
         "the active configuration; otherwise omit agent_type and route by "
-        f"model and effort alone.\n\n{roles}"
+        f"model and effort alone.\n\n{identities}"
     )
 
 

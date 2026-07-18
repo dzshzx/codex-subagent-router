@@ -79,8 +79,6 @@ def test_cli_plan_is_read_only_and_machine_readable(tmp_path: Path) -> None:
         "roles_to_add": [
             "researcher",
             "reviewer",
-            "architecture_explorer",
-            "interface_designer",
         ],
         "hook_events_to_add": [
             "PreToolUse",
