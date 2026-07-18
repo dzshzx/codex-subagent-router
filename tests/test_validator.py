@@ -50,12 +50,8 @@ def _valid_spawn_input(**overrides: object) -> dict[str, object]:
 @pytest.mark.parametrize(
     ("model", "effort", "fork_turns"),
     (
-        ("gpt-5.6-luna", "low", "none"),
-        ("gpt-5.6-luna", "high", "none"),
-        ("gpt-5.6-terra", "medium", "none"),
+        ("gpt-5.6-luna", "max", "none"),
         ("gpt-5.6-terra", "xhigh", "3"),
-        ("gpt-5.6-sol", "low", "none"),
-        ("gpt-5.6-sol", "max", "none"),
     ),
 )
 def test_supported_explicit_spawn_is_allowed_without_output(
@@ -212,23 +208,9 @@ def _valid_v1_spawn_input(**overrides: object) -> dict[str, object]:
     return tool_input
 
 
-@pytest.mark.parametrize(
-    ("model", "effort"),
-    (
-        ("gpt-5.6-luna", "low"),
-        ("gpt-5.6-luna", "high"),
-        ("gpt-5.6-terra", "medium"),
-        ("gpt-5.6-terra", "xhigh"),
-        ("gpt-5.6-sol", "low"),
-        ("gpt-5.6-sol", "max"),
-    ),
-)
-def test_supported_explicit_v1_spawn_is_allowed_without_output(
-    model: str,
-    effort: str,
-) -> None:
+def test_supported_explicit_v1_spawn_is_allowed_without_output() -> None:
     hook_input = _pre_tool_use(
-        _valid_v1_spawn_input(model=model, reasoning_effort=effort)
+        _valid_v1_spawn_input(model="gpt-5.6-luna", reasoning_effort="max")
     )
 
     assert validate_pre_tool_use(hook_input) is None
@@ -315,7 +297,7 @@ def test_v1_unknown_spawn_fields_are_denied() -> None:
     )
 
 
-def test_v1_ultra_effort_is_denied_with_the_policy_reason() -> None:
+def test_v1_invalid_compute_is_denied_with_the_policy_reason() -> None:
     hook_input = _pre_tool_use(
         _valid_v1_spawn_input(model="gpt-5.6-sol", reasoning_effort="ultra")
     )

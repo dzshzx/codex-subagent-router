@@ -15,21 +15,14 @@ def _run_cli(*arguments: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def test_cli_render_skill_prints_the_generated_document() -> None:
-    actual = _run_cli("render-skill")
-
-    assert actual.returncode == 0
-    assert actual.stdout.startswith("---\nname: codex-subagent-routing\n")
-    assert "## Route options" in actual.stdout
-    assert "do not edit by hand" in actual.stdout
-
-
 def test_cli_render_skill_writes_the_document_to_a_file(tmp_path: Path) -> None:
     target = tmp_path / "skills" / "codex-subagent-routing" / "SKILL.md"
 
     actual = _run_cli("render-skill", "--out", str(target))
+    printed = _run_cli("render-skill")
 
     assert actual.returncode == 0
+    assert printed.returncode == 0
     document = json.loads(actual.stdout)
     assert document == {
         "skill_name": "codex-subagent-routing",
@@ -37,7 +30,7 @@ def test_cli_render_skill_writes_the_document_to_a_file(tmp_path: Path) -> None:
     }
     written = target.read_text(encoding="utf-8")
     assert written.startswith("---\nname: codex-subagent-routing\n")
-    assert written == _run_cli("render-skill").stdout
+    assert written == printed.stdout
 
 
 def test_cli_usage_report_requires_an_existing_directory(

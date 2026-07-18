@@ -1,4 +1,3 @@
-import contextlib
 import hashlib
 import json
 import subprocess
@@ -58,44 +57,6 @@ def test_external_hooks_edit_survives_a_concurrent_install(tmp_path: Path) -> No
     hook_executable = _hook_executable(tmp_path)
     config_path = tmp_path / "config.toml"
     hooks_path = tmp_path / "hooks.json"
-    config_path.write_bytes(b'model = "gpt-5.6"\n' + b"# padding\n" * 400_000)
-    hooks_path.write_bytes(b'{"hooks": {}}\n')
-    state_directory = tmp_path / "codex-subagent-router"
-    ready_path = tmp_path / "editor-ready"
-    editor = subprocess.Popen(
-        [
-            sys.executable,
-            "-c",
-            _EDITOR_SCRIPT,
-            str(state_directory / "transaction.json"),
-            str(state_directory / "installation.json"),
-            str(hooks_path),
-            str(ready_path),
-        ]
-    )
-    try:
-        deadline = time.monotonic() + 10.0
-        while not ready_path.exists():
-            assert time.monotonic() < deadline, "editor process did not start"
-            time.sleep(0.001)
-        with contextlib.suppress(InstallationViolation):
-            install_user_config(tmp_path, (str(hook_executable),))
-        editor_exit = editor.wait(timeout=30)
-    finally:
-        if editor.poll() is None:
-            editor.kill()
-            editor.wait()
-
-    assert editor_exit == 0
-    assert hooks_path.read_bytes() == _EXTERNAL_EDIT
-
-
-def test_aborted_install_restores_config_and_reports_not_installed(
-    tmp_path: Path,
-) -> None:
-    hook_executable = _hook_executable(tmp_path)
-    config_path = tmp_path / "config.toml"
-    hooks_path = tmp_path / "hooks.json"
     original_config = b'model = "gpt-5.6"\n' + b"# padding\n" * 400_000
     config_path.write_bytes(original_config)
     hooks_path.write_bytes(b'{"hooks": {}}\n')
@@ -122,20 +83,17 @@ def test_aborted_install_restores_config_and_reports_not_installed(
             install_user_config(tmp_path, (str(hook_executable),))
         except InstallationViolation:
             denied = True
-        editor.wait(timeout=30)
+        editor_exit = editor.wait(timeout=30)
     finally:
         if editor.poll() is None:
             editor.kill()
             editor.wait()
 
-    if denied:
-        assert config_path.read_bytes() == original_config
-        assert installation_status(tmp_path).state is InstallationState.NOT_INSTALLED
-    else:
-        assert installation_status(tmp_path).state in (
-            InstallationState.INSTALLED,
-            InstallationState.MODIFIED,
-        )
+    assert editor_exit == 0
+    assert hooks_path.read_bytes() == _EXTERNAL_EDIT
+    assert denied
+    assert config_path.read_bytes() == original_config
+    assert installation_status(tmp_path).state is InstallationState.NOT_INSTALLED
 
 
 def test_install_recovery_fails_closed_on_external_edits(tmp_path: Path) -> None:

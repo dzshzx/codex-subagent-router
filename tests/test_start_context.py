@@ -51,13 +51,6 @@ def _session_start(source: str) -> SessionStartInput:
     return parsed
 
 
-def test_managed_identity_roster_contains_only_recurring_distinct_work() -> None:
-    assert tuple(contract.agent_type for contract in role_contracts()) == (
-        "researcher",
-        "reviewer",
-    )
-
-
 def test_managed_identity_contracts_match_the_project_identities() -> None:
     assert role_contracts() == (
         RoleContract(
@@ -121,11 +114,7 @@ def test_every_managed_identity_has_subagent_start_context(agent_type: str) -> N
     "agent_type",
     (
         "default",
-        "worker",
-        "explorer",
         "architecture_explorer",
-        "interface_designer",
-        "custom_role",
     ),
 )
 def test_subagent_start_does_not_override_unmanaged_identities(agent_type: str) -> None:

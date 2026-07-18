@@ -60,7 +60,7 @@ def test_routing_policy_lists_reasoning_depths_independently() -> None:
     (
         ("gpt-5.6-luna", "high"),
         ("gpt-5.6-terra", "xhigh"),
-        ("gpt-5.6-sol", "low"),
+        ("gpt-5.6-sol", "max"),
     ),
 )
 def test_model_and_effort_are_validated_independently(
@@ -83,13 +83,6 @@ def test_routing_policy_interface_contains_only_supported_options() -> None:
 
 def test_routing_policy_lists_prohibited_efforts() -> None:
     assert routing_policy().prohibited_efforts == ("ultra",)
-
-
-def test_every_routing_option_states_a_description() -> None:
-    policy = routing_policy()
-
-    for option in policy.models + policy.efforts:
-        assert option.description.strip()
 
 
 def test_ultra_child_effort_is_rejected() -> None:

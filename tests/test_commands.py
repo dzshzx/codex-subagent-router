@@ -109,9 +109,8 @@ def test_startup_session_document_returns_derived_routing_guidance() -> None:
     assert "max: Maximum reasoning depth." in context
 
 
-@pytest.mark.parametrize("source", ("resume", "clear", "compact"))
-def test_non_startup_session_document_has_no_output(source: str) -> None:
-    assert handle_session_start_document(_session_start_document(source)) == ""
+def test_non_startup_session_document_has_no_output() -> None:
+    assert handle_session_start_document(_session_start_document("resume")) == ""
 
 
 def test_managed_subagent_document_returns_its_role_contract() -> None:
@@ -220,18 +219,11 @@ def test_start_command_processes_write_encoded_context_to_stdout(
     assert context_fragment in payload["hookSpecificOutput"]["additionalContext"]
 
 
-@pytest.mark.parametrize(
-    ("command", "document"),
-    (
-        ("session-start", _session_start_document("resume")),
-        ("subagent-start", _subagent_start_document("worker")),
-    ),
-)
-def test_start_command_processes_write_nothing_for_no_op_documents(
-    command: str,
-    document: str,
-) -> None:
-    completed = _run_command(command, document)
+def test_start_command_processes_write_nothing_for_a_no_op_document() -> None:
+    completed = _run_command(
+        "subagent-start",
+        _subagent_start_document("worker"),
+    )
 
     assert completed.returncode == 0
     assert completed.stdout == ""

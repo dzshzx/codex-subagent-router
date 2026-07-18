@@ -327,6 +327,14 @@ def test_reinstall_refuses_to_replace_the_original_rollback_snapshot(
     second_executable.write_text("#!/bin/sh\n")
     second_executable.chmod(0o755)
 
+    plan = plan_user_installation(tmp_path, (str(second_executable),))
+
+    assert plan.conflicts == (
+        "existing installation differs from the requested configuration; "
+        "roll it back before reinstalling",
+    )
+    assert plan.config_action is InstallationFileAction.UNCHANGED
+    assert plan.hooks_action is InstallationFileAction.UNCHANGED
     with pytest.raises(
         InstallationViolation,
         match="existing installation differs from the requested configuration",
@@ -380,6 +388,13 @@ def test_reinstall_refuses_an_invalid_existing_manifest(tmp_path: Path) -> None:
         installed.manifest_path.read_bytes(),
     )
 
+    plan = plan_user_installation(tmp_path, (str(hook_executable),))
+
+    assert plan.conflicts == (
+        "existing installation state is not healthy: installation manifest is invalid",
+    )
+    assert plan.config_action is InstallationFileAction.UNCHANGED
+    assert plan.hooks_action is InstallationFileAction.UNCHANGED
     with pytest.raises(
         InstallationViolation,
         match="existing installation state is not healthy",
