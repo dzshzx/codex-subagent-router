@@ -12,8 +12,8 @@
 - Keep runtime package code independent of the Codex CLI version. Record
   version-specific upstream facts in immutable, versioned evidence rather than
   scattering version comparisons or `latest` links through executable code.
-- Use descriptive domain names such as `Profile`, `PolicyViolation`, and
-  `validate_child_effort`.
+- Use descriptive domain names such as `RoutingPolicy`, `PolicyViolation`, and
+  `validate_routed_compute`.
 - Keep machine-specific paths and user configuration out of repository code.
 
 ## Tests

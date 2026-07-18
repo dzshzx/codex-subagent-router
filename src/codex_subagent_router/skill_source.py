@@ -30,8 +30,9 @@ def result_contract_rules() -> tuple[str, ...]:
         "not pasted file bodies; read coordinates on demand.",
         "Give every child an explicit return structure and length budget.",
         "Split parallel children across disjoint files, modules, or topics.",
-        "Escalate one failed child at most once — a follow-up or one higher "
-        "profile — then take the work back into the parent.",
+        "Escalate one failed child at most once — a follow-up or one "
+        "higher-capability model or effort — then take the work back into "
+        "the parent.",
         "Each child costs a fixed startup overhead; do not delegate work "
         "smaller than that overhead.",
     )

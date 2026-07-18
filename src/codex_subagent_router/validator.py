@@ -2,12 +2,7 @@
 
 from typing import cast
 
-from .policy import (
-    PolicyViolation,
-    conditional_routes,
-    routine_routes,
-    validate_child_effort,
-)
+from .policy import PolicyViolation, validate_routed_compute
 from .protocol import PreToolUseDenyOutput, PreToolUseInput
 
 _SPAWN_AGENT_TOOL_NAMES = frozenset(
@@ -179,17 +174,9 @@ def _validate_routed_compute(
                     )
                 )
     reasoning_effort = cast(str, tool_input["reasoning_effort"])
+    model = cast(str, tool_input["model"])
     try:
-        validate_child_effort(reasoning_effort)
+        validate_routed_compute(model, reasoning_effort)
     except PolicyViolation as error:
         return PreToolUseDenyOutput(reason=str(error))
-    model = cast(str, tool_input["model"])
-    supported_profiles = routine_routes() + conditional_routes()
-    if not any(
-        profile.model == model and profile.effort == reasoning_effort
-        for profile in supported_profiles
-    ):
-        return PreToolUseDenyOutput(
-            reason=f"unsupported child profile: {model} / {reasoning_effort}"
-        )
     return None

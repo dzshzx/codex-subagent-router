@@ -4,118 +4,108 @@
 
 This document defines the positive routing rules consumed by protocol adapters
 and parent-agent guidance. `policy.py` remains the single executable source of
-truth for the ordered compute profiles and supported child efforts.
+truth for independent child model and reasoning-effort choices.
 
-## Automatic compute ladder
+## Dynamic compute planning
 
-Routine routes are ordered by increasing capability and resource use:
+The parent interprets each task. Python does not attempt to infer natural-language
+task semantics. Model and reasoning effort are two independent decisions:
 
-| Order | Model | Effort | Intended quality gate |
-|---:|---|---|---:|
-| 1 | `gpt-5.6-terra` | `medium` | 35% |
-| 2 | `gpt-5.6-sol` | `low` | 45% |
-| 3 | `gpt-5.6-terra` | `high` | 50% |
-| 4 | `gpt-5.6-sol` | `medium` | 60% |
-| 5 | `gpt-5.6-sol` | `high` | 65% |
+| Model | Capability guidance |
+|---|---|
+| `gpt-5.6-luna` | Simple, low-risk, self-contained lookup, enumeration, and mechanical extraction |
+| `gpt-5.6-terra` | Routine bounded execution, focused code changes, cross-file reading, synthesis, and analysis |
+| `gpt-5.6-sol` | Complex multi-step implementation, critical review, adjudication, hard debugging, and high-risk work |
 
-Conditional escalation routes are also ordered by increasing capability and
-resource use:
+| Effort | Reasoning-depth guidance | Concrete reason required |
+|---|---|---|
+| `low` | Straightforward work with a clear path, few steps, and cheap verification | no |
+| `medium` | Routine multi-step work with a known approach and normal verification | no |
+| `high` | Ambiguous, cross-cutting, risk-sensitive, or verification-heavy work | no |
+| `xhigh` | Exceptionally hard reasoning after high is insufficient | yes |
+| `max` | Explicit highest-quality work after lower effort is insufficient | yes |
 
-| Order | Model | Effort | Intended quality gate |
-|---:|---|---|---:|
-| 1 | `gpt-5.6-sol` | `xhigh` | 70% |
-| 2 | `gpt-5.6-sol` | `max` | 72% |
-
-The gates describe the versioned DeepSWE analysis in
-[`docs/research/deepswe-v1.1-routing-evidence.md`](research/deepswe-v1.1-routing-evidence.md).
-They are selection guidance, not promises about a particular task.
+Every listed model may be combined with every listed effort. The catalogs state
+runtime-supported choices and planning guidance, not pre-bound profiles. The
+older quality-gate analysis remains recorded in
+[`deepswe-v1.1-routing-evidence.md`](research/deepswe-v1.1-routing-evidence.md)
+as historical evidence, not as a second current route table.
 
 ## Selection rules
 
-1. Choose the lowest routine profile that is credible for the task's required
-   quality and complexity.
-2. Use `sol/xhigh` only when the routine ladder is insufficient and the extra
-   quality justifies the measured time and cost increase.
-3. Use `sol/max` only for an explicit highest-quality requirement or after a
-   lower route has proved insufficient.
-4. Submit model and effort explicitly on a route-managed spawn. A missing field
-   is not permission for a hook to guess.
-5. Keep role identity independent of compute. The same stable role may be
-   spawned at different supported profiles.
-6. Keep context selection explicit. A full-history fork (`fork_turns="all"` on
-   MultiAgent V2, `fork_context=true` on stable V1) intentionally inherits
-   full parent configuration and cannot carry per-spawn role/model/effort
-   overrides. Route-managed spawns therefore use `none` or a positive integer
-   string on V2 and leave `fork_context` false or omitted on V1.
-7. A protocol adapter derives accepted effort values from the policy seam. It
-   must not copy a second effort allowlist.
+1. Choose model from task capability, risk, and type: Luna for simple low-risk
+   self-contained work; Terra for routine execution and analysis; Sol for
+   complex implementation, critical review, hard debugging, and high-risk work.
+2. Choose `reasoning_effort` independently from reasoning depth, ambiguity, and
+   verification needs.
+3. A higher effort does not compensate for a model that lacks the required
+   capability.
+4. Use the lowest-capability model and lowest effort that remain credible for
+   the task.
+5. Use `xhigh` or `max` only when the task requires it, and state a concrete
+   reason.
+6. Submit model and effort explicitly on a route-managed spawn. A missing field
+   is not permission for a Hook to guess.
+7. Keep role identity independent of compute. The same stable role may be
+   spawned with different task-appropriate compute.
+8. Keep context selection explicit. Route-managed V2 spawns use
+   `fork_turns="none"` or a positive integer string; V1 spawns leave
+   `fork_context` false or omitted.
+
+The decision is recorded in
+[`ADR-0007`](adr/0007-plan-model-and-effort-independently.md).
 
 ## Hook responsibilities
 
 - The parent chooses `agent_type`, model, effort, and context based on the task.
-- `PreToolUse` validates the explicit spawn against policy and denies invalid
-  calls before child creation.
-- `PreToolUse` does not silently rewrite a model, effort, role, or fork mode.
-- `SessionStart` emits parent routing guidance only for root `startup`. The
-  guidance is derived from the executable route and managed-role sources.
+- `PreToolUse` validates the explicit model and effort independently and denies
+  unsupported values before child creation.
+- `PreToolUse` does not interpret task semantics or silently rewrite model,
+  effort, role, or fork mode.
+- `SessionStart` emits parent routing guidance only for root `startup`; the text
+  is derived from the executable policy and managed-role sources.
 - `SubagentStart` injects the stable contract for the resolved role. It does not
   select or validate compute, and it emits no output for unmanaged roles.
 
 ## `PreToolUse` validator contract
 
 The public validator accepts an already parsed `PreToolUseInput` and returns a
-`PreToolUseDenyOutput` or `None`. It performs no I/O and does not mutate the hook
+`PreToolUseDenyOutput` or `None`. It performs no I/O and does not mutate the Hook
 input.
 
 The validator recognizes the matching-tag `spawn_agent` name and `Agent` alias,
 plus the `agentsspawn_agent` and `collaborationspawn_agent` names observed in
-installed 0.144.1 probes. Other tool names are ignored without inspecting their
-inputs. Supporting another tool name requires new versioned evidence; substring
-matching inside the handler is not a fallback.
+installed probes. Other tool names are ignored without inspecting their inputs.
 
-For a recognized spawn, `tool_input` must be an object. Stable MultiAgent V1
-and MultiAgent V2 register the same hook tool name, so the validator selects
-the contract from the input shape: a `task_name` or `fork_turns` field selects
-the V2 contract; otherwise the stable V1 contract applies.
+For a recognized spawn, `tool_input` must be an object. A `task_name` or
+`fork_turns` field selects the V2 contract; otherwise the stable V1 contract
+applies.
 
-V2 contract — the object contains only:
+V2 contains only:
 
-- required `message`, `task_name`, `agent_type`, `model`,
-  `reasoning_effort`, and `fork_turns` strings;
-- optional non-empty `service_tier` string.
+- required non-empty `message`, `task_name`, `model`, `reasoning_effort`, and
+  `fork_turns` strings;
+- optional non-empty `agent_type` and `service_tier` strings.
 
 `fork_turns` must be exactly `none` or an ASCII positive integer string.
-Full-history `all` is denied because routed spawns provide explicit role and
-compute.
 
-Stable V1 contract — the object contains only:
+V1 contains only:
 
-- required `agent_type`, `model`, and `reasoning_effort` strings;
+- required non-empty `model` and `reasoning_effort` strings;
 - exactly one of a non-empty `message` string or a non-empty `items` array;
-- optional non-empty `service_tier` string;
-- optional boolean `fork_context`, which must be `false`: a full-history fork
-  inherits parent routing and is denied for explicitly routed spawns.
+- optional non-empty `agent_type` and `service_tier` strings;
+- optional boolean `fork_context`, which must be `false`.
 
-In both shapes all required strings must be non-empty and the model/effort
-pair must equal one of the profiles returned by the policy seam.
-
-This stage deliberately validates only that `agent_type` is explicit and
-non-empty. It does not own a role allowlist: managed role selection and context
-loading belong to the start-context stage, while Codex built-in or separately
-installed roles remain valid inputs to the routing validator.
-
-This separation is recorded in
-[`ADR-0001`](adr/0001-use-pretooluse-and-subagentstart.md) and
-[`ADR-0002`](adr/0002-separate-role-identity-from-compute.md).
+In both shapes model and reasoning effort are checked independently against the
+policy catalogs. `agent_type` is checked only for a non-empty string when
+present; managed role selection belongs to the start-context stage.
 
 ## Prohibitions
 
 - Child reasoning effort `ultra` is prohibited.
-- Unknown effort values are rejected explicitly.
-- `max` is not prohibited; it is a conditional escalation profile.
-- No hidden fallback may replace a missing or invalid route.
-- No hook may infer complexity from `task_name` and silently change compute.
-- No second route table or effort allowlist may be introduced in a protocol
-  adapter, handler, role contract, or installer.
+- Unknown model and effort values are rejected explicitly.
+- No hidden fallback may replace a missing or invalid decision.
+- No Hook may infer complexity from `task_name` and silently change compute.
+- No second model catalog, effort catalog, or pair allowlist may be introduced.
 - Hook validation must not be represented as a fail-closed security or cost
   boundary; Codex command-hook failures are fail-open in the verified version.

@@ -20,7 +20,7 @@ def test_cli_render_skill_prints_the_generated_document() -> None:
 
     assert actual.returncode == 0
     assert actual.stdout.startswith("---\nname: codex-subagent-routing\n")
-    assert "## Route profiles" in actual.stdout
+    assert "## Dynamic route planning" in actual.stdout
     assert "do not edit by hand" in actual.stdout
 
 
@@ -56,7 +56,7 @@ def test_cli_usage_report_emits_machine_readable_statistics(
         {
             "task_name": "probe_child",
             "agent_type": "reviewer",
-            "model": "gpt-5.6-sol",
+            "model": "gpt-5.6-luna",
             "reasoning_effort": "low",
             "fork_turns": "none",
             "message": "sentinel",
@@ -85,14 +85,14 @@ def test_cli_usage_report_emits_machine_readable_statistics(
     assert document["sessions_scanned"] == 1
     assert document["sessions_with_spawns"] == 1
     assert document["denied_calls"] == 0
-    assert document["route_distribution"] == {"gpt-5.6-sol/low": 1}
+    assert document["route_distribution"] == {"gpt-5.6-luna/low": 1}
     assert document["spawn_calls"] == [
         {
             "session_file": "rollout-1-root.jsonl",
             "tool_name": "spawn_agent",
             "task_name": "probe_child",
             "agent_type": "reviewer",
-            "model": "gpt-5.6-sol",
+            "model": "gpt-5.6-luna",
             "reasoning_effort": "low",
             "fork_turns": "none",
             "deny_reason": None,

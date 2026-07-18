@@ -50,12 +50,11 @@ def _valid_spawn_input(**overrides: object) -> dict[str, object]:
 @pytest.mark.parametrize(
     ("model", "effort", "fork_turns"),
     (
+        ("gpt-5.6-luna", "low", "none"),
+        ("gpt-5.6-luna", "high", "none"),
         ("gpt-5.6-terra", "medium", "none"),
-        ("gpt-5.6-sol", "low", "3"),
-        ("gpt-5.6-terra", "high", "none"),
-        ("gpt-5.6-sol", "medium", "none"),
-        ("gpt-5.6-sol", "high", "none"),
-        ("gpt-5.6-sol", "xhigh", "none"),
+        ("gpt-5.6-terra", "xhigh", "3"),
+        ("gpt-5.6-sol", "low", "none"),
         ("gpt-5.6-sol", "max", "none"),
     ),
 )
@@ -148,16 +147,16 @@ def test_invalid_child_effort_is_denied_with_the_policy_reason(
     assert validate_pre_tool_use(hook_input) == PreToolUseDenyOutput(reason=reason)
 
 
-def test_unlisted_model_effort_profile_is_denied() -> None:
+def test_unknown_child_model_is_denied() -> None:
     hook_input = _pre_tool_use(
         _valid_spawn_input(
-            model="gpt-5.6-terra",
-            reasoning_effort="low",
+            model="gpt-5.6-nebula",
+            reasoning_effort="medium",
         )
     )
 
     assert validate_pre_tool_use(hook_input) == PreToolUseDenyOutput(
-        reason="unsupported child profile: gpt-5.6-terra / low"
+        reason="unsupported child model: gpt-5.6-nebula"
     )
 
 
@@ -216,12 +215,11 @@ def _valid_v1_spawn_input(**overrides: object) -> dict[str, object]:
 @pytest.mark.parametrize(
     ("model", "effort"),
     (
+        ("gpt-5.6-luna", "low"),
+        ("gpt-5.6-luna", "high"),
         ("gpt-5.6-terra", "medium"),
+        ("gpt-5.6-terra", "xhigh"),
         ("gpt-5.6-sol", "low"),
-        ("gpt-5.6-terra", "high"),
-        ("gpt-5.6-sol", "medium"),
-        ("gpt-5.6-sol", "high"),
-        ("gpt-5.6-sol", "xhigh"),
         ("gpt-5.6-sol", "max"),
     ),
 )

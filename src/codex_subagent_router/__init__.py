@@ -25,11 +25,13 @@ from .installation import (
     update_user_config,
 )
 from .policy import (
+    EffortGuide,
+    ModelGuide,
     PolicyViolation,
-    Profile,
-    conditional_routes,
-    routine_routes,
-    validate_child_effort,
+    RoutedCompute,
+    RoutingPolicy,
+    routing_policy,
+    validate_routed_compute,
 )
 from .protocol import (
     PermissionMode,
@@ -56,8 +58,9 @@ from .usage_report import (
 from .validator import validate_pre_tool_use
 
 __all__ = (
+    "EffortGuide",
+    "ModelGuide",
     "PolicyViolation",
-    "Profile",
     "PermissionMode",
     "PreToolUseDenyOutput",
     "PreToolUseInput",
@@ -78,10 +81,11 @@ __all__ = (
     "InstallationViolation",
     "RollbackFileAction",
     "RollbackResult",
+    "RoutedCompute",
+    "RoutingPolicy",
     "SpawnCall",
     "UsageReport",
     "UsageReportViolation",
-    "conditional_routes",
     "doctor_user_config",
     "encode_hook_output",
     "handle_pre_tool_use_document",
@@ -95,12 +99,12 @@ __all__ = (
     "render_skill_markdown",
     "role_contracts",
     "rollback_user_config",
-    "routine_routes",
+    "routing_policy",
     "session_start_context",
     "skill_name",
     "subagent_start_context",
     "usage_report",
-    "validate_child_effort",
     "validate_pre_tool_use",
+    "validate_routed_compute",
     "update_user_config",
 )

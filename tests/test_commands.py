@@ -103,7 +103,9 @@ def test_startup_session_document_returns_derived_routing_guidance() -> None:
 
     assert actual["hookSpecificOutput"]["hookEventName"] == "SessionStart"
     context = actual["hookSpecificOutput"]["additionalContext"]
-    assert "gpt-5.6-terra / medium" in context
+    assert "Choose model by task capability" in context
+    assert "gpt-5.6-luna" in context
+    assert "Choose reasoning_effort independently" in context
     assert "Child effort ultra is prohibited." in context
 
 

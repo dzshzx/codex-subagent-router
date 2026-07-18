@@ -66,7 +66,9 @@ launcher paths earlier at the CLI boundary. These packaging and preflight
 changes do not extend the Codex-version compatibility claim beyond the recorded
 probe. Version `0.1.5` adds user-level update, doctor, and uninstall lifecycle
 surfaces without changing the generated Hook protocol or expanding the recorded
-Codex-version compatibility claim.
+Codex-version compatibility claim. Version `0.1.7` replaces fixed model/effort
+profiles with independent model capability and reasoning-depth guidance; it does
+not expand the recorded Codex-version compatibility claim.
 
 The installed `0.144.3` release binary drifts from its source tag: it still
 reports the flattened `collaborationspawn_agent` hook tool name and its
@@ -77,13 +79,18 @@ reading alone.
 Codex ships two multi-agent tool generations. In `0.144.4`, the session uses
 the selected model's `multi_agent_version` metadata before falling back to the
 feature default. The bundled catalog assigns V2 to `gpt-5.6-sol` and
-`gpt-5.6-terra`, the only model families in this router's policy, so generated
-installations explicitly enable V2. They also set
+`gpt-5.6-terra`, while `gpt-5.6-luna` reports V1. Generated installations
+explicitly enable V2 because Sol and Terra own the routine parent routing
+surface. They also set
 `hide_spawn_agent_metadata = false` so the Hook can validate role/model/effort,
 and `tool_namespace = "agents"` to keep the spawn tool on the verified matcher
-seam. The validator retains V1 input-shape support for compatibility, but V1 is
-not the generated installation priority. See
-[ADR-0005](docs/adr/0005-enable-multiagent-v2-for-gpt-5-6.md).
+seam. Luna is available for simple leaf-child work: a real-backend `0.144.4`
+probe confirmed
+that a V2 Sol parent can create a Luna/low child with the requested compute.
+The validator retains V1 input-shape support for compatibility, but V1 is not
+the generated installation priority. See
+[ADR-0005](docs/adr/0005-enable-multiagent-v2-for-gpt-5-6.md) and
+[ADR-0007](docs/adr/0007-plan-model-and-effort-independently.md).
 
 Unlisted Codex versions are unverified. The protocol boundary is deliberately
 strict, while Codex command-hook failures are fail-open; an upstream schema or
@@ -96,29 +103,30 @@ replacing old links with an unpinned `latest` reference.
 
 ## Guided routing policy
 
-The route table is the allowlist and ordering guidance for an explicit parent
-decision. Root startup context tells the parent which role, model, effort, and
-fork shape to select; the `PreToolUse` hook validates that explicit selection
-and only denies invalid calls. It never chooses, fills, or rewrites spawn
-parameters automatically.
+The policy exposes independent model and reasoning-effort catalogs for an
+explicit parent decision. The parent interprets the task, chooses model by the
+capability required, then chooses effort separately by reasoning depth,
+ambiguity, risk, and verification needs. The `PreToolUse` hook validates that
+both choices are supported and only denies invalid calls. It never interprets
+the task, fills a missing field, or rewrites a decision.
 
-Five named profiles cover routine work in ascending capability order:
+| Model | Use for |
+|---|---|
+| `gpt-5.6-luna` | Simple, low-risk, self-contained lookup, enumeration, and mechanical extraction. |
+| `gpt-5.6-terra` | Routine bounded execution, focused code changes, cross-file reading, synthesis, and analysis. |
+| `gpt-5.6-sol` | Complex multi-step implementation, critical review, adjudication, hard debugging, and high-risk work. |
 
-| Profile | Model | Effort | Use for |
-|---|---|---|---|
-| `scout` | `gpt-5.6-terra` | `medium` | Broad reads, enumeration, and mechanical extraction. |
-| `worker` | `gpt-5.6-sol` | `low` | Routine bounded execution with fast turnaround. |
-| `analyst` | `gpt-5.6-terra` | `high` | Wide reading, digestion, and first drafts on the budget model. |
-| `builder` | `gpt-5.6-sol` | `medium` | Standard implementation and multi-step changes. |
-| `judge` | `gpt-5.6-sol` | `high` | Critical review, adjudication, and hard debugging. |
+| Effort | Use for | Concrete reason required |
+|---|---|---|
+| `low` | Straightforward work with a clear path, few steps, and cheap verification. | no |
+| `medium` | Routine multi-step work with a known approach and normal verification. | no |
+| `high` | Ambiguous, cross-cutting, risk-sensitive, or verification-heavy work. | no |
+| `xhigh` | Exceptionally hard reasoning after high is insufficient. | yes |
+| `max` | Explicit highest-quality work after lower effort is insufficient. | yes |
 
-Two named profiles provide conditional escalation in ascending capability
-order:
-
-| Profile | Model | Effort | Use for |
-|---|---|---|---|
-| `escalation_xhigh` | `gpt-5.6-sol` | `xhigh` | Escalation when judge-level work needs deeper reasoning. |
-| `escalation_max` | `gpt-5.6-sol` | `max` | Maximum effort; requires a stated concrete reason. |
+Effort does not compensate for a model that lacks the required capability.
+Any supported model may be combined with any supported effort when that is the
+parent's explicit task-aware decision; child effort `ultra` remains prohibited.
 
 ## Generated skill document and usage report
 
@@ -150,23 +158,21 @@ from codex_subagent_router import (
     PreToolUseInput,
     SessionStartInput,
     SubagentStartInput,
-    conditional_routes,
     encode_hook_output,
     handle_pre_tool_use_document,
     handle_session_start_document,
     handle_subagent_start_document,
     parse_hook_input,
     role_contracts,
-    routine_routes,
+    routing_policy,
     session_start_context,
     subagent_start_context,
-    validate_child_effort,
     validate_pre_tool_use,
+    validate_routed_compute,
 )
 
-routine = routine_routes()
-conditional = conditional_routes()
-effort = validate_child_effort("high")
+policy = routing_policy()
+compute = validate_routed_compute("gpt-5.6-terra", "high")
 
 hook_input = parse_hook_input(sys.stdin.read())
 if isinstance(hook_input, PreToolUseInput):
@@ -238,8 +244,9 @@ The compatibility table records completed probes, not a runtime version pin.
 If the installed Codex version is not listed, complete the compatibility gate
 in [CONTRIBUTING.md](CONTRIBUTING.md#codex-compatibility-verification) before
 describing the deployment as verified. The installer enables MultiAgent V2 for
-the GPT-5.6 Sol/Terra policy used here; do not remove or override those settings
-without re-verifying the Hook-visible spawn contract.
+the GPT-5.6 Sol/Terra parent routing surface; the Luna scout remains an explicit
+leaf-child override. Do not remove or override those settings without
+re-verifying the Hook-visible spawn contract.
 
 ### Persistent package installation
 
@@ -506,7 +513,7 @@ git diff --check
 4. `SessionStart` routing guidance and `SubagentStart` role contracts. **Complete.**
 5. Isolated end-to-end hook probes. **Complete.**
 6. User-level plan/install/update/status/doctor/uninstall lifecycle. **Complete.**
-7. Named route profiles, generated skill document, and offline usage report. **Complete.**
+7. Dynamic model/effort guidance, generated skill document, and offline usage report. **Complete.**
 
 ## Prohibitions
 

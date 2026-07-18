@@ -1,6 +1,6 @@
 """Start-hook context derived from routing and role sources."""
 
-from .policy import conditional_routes, routine_routes, routing_guidance_rules
+from .policy import routing_policy
 from .protocol import (
     SessionSource,
     SessionStartInput,
@@ -20,25 +20,26 @@ def session_start_context(hook_input: SessionStartInput) -> SessionStartOutput |
         f"- {contract.agent_type}: {contract.description}"
         for contract in role_contracts()
     )
-    routine_profiles = "\n".join(
-        f"- {profile.name}: {profile.model} / {profile.effort} — {profile.purpose}"
-        for profile in routine_routes()
+    policy = routing_policy()
+    model_guidance = "\n".join(
+        f"- {guide.model}: {guide.purpose}" for guide in policy.models
     )
-    conditional_profiles = "\n".join(
-        f"- {profile.name}: {profile.model} / {profile.effort} — {profile.purpose}"
-        for profile in conditional_routes()
+    effort_guidance = "\n".join(
+        f"- {guide.reasoning_effort}: {guide.purpose}"
+        + (" State a concrete reason." if guide.requires_concrete_reason else "")
+        for guide in policy.efforts
     )
     spawn_rules = routed_spawn_guidance_rules()
-    closing_rules = " ".join(routing_guidance_rules() + spawn_rules[1:])
+    closing_rules = " ".join(policy.rules + spawn_rules[1:])
     return SessionStartOutput(
         additional_context=(
             "Codex subagent routing policy for this root session:\n\n"
             f"{spawn_rules[0]}\n\n"
             f"Managed roles:\n{managed_roles}\n\n"
-            "Routine profiles in ascending capability order:\n"
-            f"{routine_profiles}\n\n"
-            "Conditional escalation profiles in ascending capability order:\n"
-            f"{conditional_profiles}\n\n"
+            "Choose model by task capability:\n"
+            f"{model_guidance}\n\n"
+            "Choose reasoning_effort independently by reasoning depth:\n"
+            f"{effort_guidance}\n\n"
             f"{closing_rules}"
         )
     )

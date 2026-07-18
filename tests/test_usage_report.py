@@ -25,7 +25,7 @@ def _v2_arguments(**overrides: str) -> dict[str, object]:
     arguments: dict[str, object] = {
         "task_name": "probe_child",
         "agent_type": "reviewer",
-        "model": "gpt-5.6-sol",
+        "model": "gpt-5.6-luna",
         "reasoning_effort": "low",
         "fork_turns": "none",
         "message": "sentinel",
@@ -83,14 +83,14 @@ def test_usage_report_aggregates_spawns_and_replays_validation(
     assert report.sessions_with_spawns == 1
     assert report.denied_calls == 1
     assert report.route_distribution == (
-        ("gpt-5.6-sol/low", 1),
-        ("gpt-5.6-sol/ultra", 1),
+        ("gpt-5.6-luna/low", 1),
+        ("gpt-5.6-luna/ultra", 1),
     )
     accepted, denied = report.spawn_calls
     assert accepted.tool_name == "spawn_agent"
     assert accepted.task_name == "probe_child"
     assert accepted.agent_type == "reviewer"
-    assert accepted.model == "gpt-5.6-sol"
+    assert accepted.model == "gpt-5.6-luna"
     assert accepted.reasoning_effort == "low"
     assert accepted.fork_turns == "none"
     assert accepted.deny_reason is None
@@ -133,4 +133,4 @@ def test_usage_report_counts_namespaced_spawn_tool_names(tmp_path: Path) -> None
 
     (call,) = report.spawn_calls
     assert call.tool_name == "agentsspawn_agent"
-    assert call.deny_reason == "unsupported child profile: gpt-5.6-terra / low"
+    assert call.deny_reason is None

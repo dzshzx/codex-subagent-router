@@ -1,6 +1,6 @@
 """Render routing policy and dispatch guidance as one agent-skill document."""
 
-from .policy import conditional_routes, routine_routes, routing_guidance_rules
+from .policy import routing_policy
 from .roles import role_contracts
 from .skill_source import (
     delegation_signals,
@@ -13,7 +13,7 @@ from .validator import routed_spawn_guidance_rules
 _SKILL_NAME = "codex-subagent-routing"
 _SKILL_DESCRIPTION = (
     "Route Codex subagent spawns with explicit model and reasoning effort. "
-    "Use when delegating work to subagents, choosing a spawn profile, "
+    "Use when delegating work to subagents, choosing task-aware compute, "
     "parallelizing reads or reviews, or writing a child task packet."
 )
 
@@ -29,7 +29,7 @@ def render_skill_markdown() -> str:
         _frontmatter(),
         _header(),
         _delegation_section(),
-        _profile_section(),
+        _dynamic_routing_section(),
         _role_section(),
         _spawn_contract_section(),
         _task_packet_section(),
@@ -63,24 +63,27 @@ def _delegation_section() -> str:
     )
 
 
-def _profile_section() -> str:
-    table_head = "| Profile | Model | Effort | Use for |\n|---|---|---|---|"
-    routine_rows = "\n".join(
-        f"| {profile.name} | {profile.model} | {profile.effort} | {profile.purpose} |"
-        for profile in routine_routes()
+def _dynamic_routing_section() -> str:
+    policy = routing_policy()
+    model_rows = "\n".join(
+        f"| {guide.model} | {guide.purpose} |" for guide in policy.models
     )
-    conditional_rows = "\n".join(
-        f"| {profile.name} | {profile.model} | {profile.effort} | {profile.purpose} |"
-        for profile in conditional_routes()
+    effort_rows = "\n".join(
+        "| "
+        f"{guide.reasoning_effort} | {guide.purpose} | "
+        f"{'yes' if guide.requires_concrete_reason else 'no'} |"
+        for guide in policy.efforts
     )
-    rules = " ".join(routing_guidance_rules())
+    rules = "\n".join(f"- {rule}" for rule in policy.rules)
     return (
-        "## Route profiles\n\n"
-        "Routine profiles in ascending capability order:\n\n"
-        f"{table_head}\n{routine_rows}\n\n"
-        "Conditional escalation profiles:\n\n"
-        f"{table_head}\n{conditional_rows}\n\n"
-        f"{rules}"
+        "## Dynamic route planning\n\n"
+        "Choose model by the capability the task requires:\n\n"
+        "| Model | Use for |\n|---|---|\n"
+        f"{model_rows}\n\n"
+        "Choose reasoning_effort independently by reasoning depth:\n\n"
+        "| Effort | Use for | Concrete reason required |\n|---|---|---|\n"
+        f"{effort_rows}\n\n"
+        f"Decision rules:\n{rules}"
     )
 
 

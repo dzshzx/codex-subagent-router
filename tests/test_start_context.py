@@ -162,18 +162,19 @@ Managed roles:
 - architecture_explorer: Read-only architecture explorer for broad codebase scans and deepening opportunities.
 - interface_designer: Read-only module-interface designer for independent API and module-shape alternatives.
 
-Routine profiles in ascending capability order:
-- scout: gpt-5.6-terra / medium — Broad reads, enumeration, and mechanical extraction.
-- worker: gpt-5.6-sol / low — Routine bounded execution with fast turnaround.
-- analyst: gpt-5.6-terra / high — Wide reading, digestion, and first drafts on the budget model.
-- builder: gpt-5.6-sol / medium — Standard implementation and multi-step changes.
-- judge: gpt-5.6-sol / high — Critical review, adjudication, and hard debugging.
+Choose model by task capability:
+- gpt-5.6-luna: Simple, low-risk, self-contained lookup, enumeration, and mechanical extraction.
+- gpt-5.6-terra: Routine bounded execution, focused code changes, cross-file reading, synthesis, and analysis.
+- gpt-5.6-sol: Complex multi-step implementation, critical review, adjudication, hard debugging, and high-risk work.
 
-Conditional escalation profiles in ascending capability order:
-- escalation_xhigh: gpt-5.6-sol / xhigh — Escalation when judge-level work needs deeper reasoning.
-- escalation_max: gpt-5.6-sol / max — Maximum effort; requires a stated concrete reason.
+Choose reasoning_effort independently by reasoning depth:
+- low: Straightforward work with a clear path, few steps, and cheap verification.
+- medium: Routine multi-step work with a known approach and normal verification.
+- high: Ambiguous, cross-cutting, risk-sensitive, or verification-heavy work.
+- xhigh: Exceptionally hard reasoning after high is insufficient. State a concrete reason.
+- max: Explicit highest-quality work after lower effort is insufficient. State a concrete reason.
 
-Pick the profile whose purpose matches the task; do not default to the parent session's compute. Escalate to xhigh or max only when the task requires it. Child effort ultra is prohibited. Set agent_type when a suitable declared role exists; omit it otherwise. On MultiAgent V2, also set task_name (lowercase letters, digits, and underscores only) and fork_turns="none" for independent work or a positive integer string for limited recent context; do not use full-history all with explicit routing. On stable MultiAgent V1, leave fork_context false or omitted; do not spawn full-history forks with explicit routing. Do not omit routed fields or silently rewrite them."""
+Choose model from task capability, risk, and type: Luna for simple, low-risk, self-contained work; Terra for routine execution and analysis; Sol for complex implementation, critical review, hard debugging, and high-risk work. Choose reasoning_effort independently from reasoning depth, ambiguity, and verification needs. A higher effort does not compensate for a model that lacks the required capability. Use the lowest-capability model and lowest effort that remain credible for the task. Use xhigh or max only when the task requires it and state a concrete reason. Child effort ultra is prohibited. Set agent_type when a suitable declared role exists; omit it otherwise. On MultiAgent V2, also set task_name (lowercase letters, digits, and underscores only) and fork_turns="none" for independent work or a positive integer string for limited recent context; do not use full-history all with explicit routing. On stable MultiAgent V1, leave fork_context false or omitted; do not spawn full-history forks with explicit routing. Do not omit routed fields or silently rewrite them."""
     )
 
 
