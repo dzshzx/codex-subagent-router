@@ -141,8 +141,9 @@ deny-only `PreToolUse` validator、start-context handlers、隔离端到端探�
 
 ### Issue tracker
 
-Issue 使用 local-markdown tracker，存放在 `.scratch/<feature>/`。具体约定
-见 `docs/agents/issue-tracker.md`。
+Issue 使用 local-markdown tracker，存放在仓外
+`~/.local/share/agent-workfiles/codex-subagent-router/tracker/<feature>/`
+（不入库、可丢弃）。具体约定见 `docs/agents/issue-tracker.md`。
 
 ### Triage labels
 

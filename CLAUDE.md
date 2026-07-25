@@ -63,7 +63,7 @@ hook JSON protocol、deny-only `PreToolUse` 校验、启动 context、隔离端�
 
 ### Issue tracker
 
-Issue 以 markdown 文件形式放在仓库内 `.scratch/<feature>/` 下（local-markdown tracker）。See `docs/agents/issue-tracker.md`.
+Issue 以 markdown 文件形式放在仓外 `~/.local/share/agent-workfiles/codex-subagent-router/tracker/<feature>/` 下（local-markdown tracker，不入库、可丢弃）。See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 

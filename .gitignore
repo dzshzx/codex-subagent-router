@@ -9,3 +9,6 @@ __pycache__/
 build/
 dist/
 .playwright-mcp/
+
+# 纯临时草稿区,整体忽略,可随时清理;issue tracker 在仓外 XDG(见 docs/agents/issue-tracker.md)
+.scratch/
