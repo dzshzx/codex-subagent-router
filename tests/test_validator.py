@@ -50,7 +50,7 @@ def _valid_spawn_input(**overrides: object) -> dict[str, object]:
 @pytest.mark.parametrize(
     ("model", "effort", "fork_turns"),
     (
-        ("gpt-5.6-luna", "max", "none"),
+        ("gpt-5.6-luna", "high", "none"),
         ("gpt-5.6-terra", "xhigh", "3"),
     ),
 )
@@ -125,6 +125,7 @@ def test_required_spawn_fields_must_be_non_empty_strings() -> None:
 @pytest.mark.parametrize(
     ("effort", "reason"),
     (
+        ("max", "child reasoning effort 'max' is prohibited"),
         ("ultra", "child reasoning effort 'ultra' is prohibited"),
         ("turbo", "unsupported child reasoning effort: turbo"),
     ),
@@ -210,7 +211,7 @@ def _valid_v1_spawn_input(**overrides: object) -> dict[str, object]:
 
 def test_supported_explicit_v1_spawn_is_allowed_without_output() -> None:
     hook_input = _pre_tool_use(
-        _valid_v1_spawn_input(model="gpt-5.6-luna", reasoning_effort="max")
+        _valid_v1_spawn_input(model="gpt-5.6-luna", reasoning_effort="xhigh")
     )
 
     assert validate_pre_tool_use(hook_input) is None

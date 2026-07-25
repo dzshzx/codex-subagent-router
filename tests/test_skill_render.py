@@ -37,8 +37,8 @@ def test_skill_document_renders_independent_model_and_effort_options() -> None:
     assert "| gpt-5.6-sol | Highest-capability model. |" in document
     assert "| low | Low reasoning depth. |" in document
     assert "| xhigh | Extra-high reasoning depth. |" in document
-    assert "| max | Maximum reasoning depth. |" in document
-    assert "Prohibited child reasoning efforts: ultra." in document
+    assert "| max | Maximum reasoning depth. |" not in document
+    assert "Prohibited child reasoning efforts: max, ultra." in document
 
 
 def test_skill_document_states_the_spawn_contract() -> None:

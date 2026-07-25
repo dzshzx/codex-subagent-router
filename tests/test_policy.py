@@ -48,10 +48,6 @@ def test_routing_policy_lists_reasoning_depths_independently() -> None:
             reasoning_effort="xhigh",
             description="Extra-high reasoning depth.",
         ),
-        EffortOption(
-            reasoning_effort="max",
-            description="Maximum reasoning depth.",
-        ),
     )
 
 
@@ -60,7 +56,7 @@ def test_routing_policy_lists_reasoning_depths_independently() -> None:
     (
         ("gpt-5.6-luna", "high"),
         ("gpt-5.6-terra", "xhigh"),
-        ("gpt-5.6-sol", "max"),
+        ("gpt-5.6-sol", "xhigh"),
     ),
 )
 def test_model_and_effort_are_validated_independently(
@@ -82,7 +78,15 @@ def test_routing_policy_interface_contains_only_supported_options() -> None:
 
 
 def test_routing_policy_lists_prohibited_efforts() -> None:
-    assert routing_policy().prohibited_efforts == ("ultra",)
+    assert routing_policy().prohibited_efforts == ("max", "ultra")
+
+
+def test_max_child_effort_is_rejected() -> None:
+    with pytest.raises(
+        PolicyViolation,
+        match="child reasoning effort 'max' is prohibited",
+    ):
+        validate_routed_compute("gpt-5.6-sol", "max")
 
 
 def test_ultra_child_effort_is_rejected() -> None:

@@ -143,9 +143,8 @@ Reasoning efforts:
 - medium: Medium reasoning depth.
 - high: High reasoning depth.
 - xhigh: Extra-high reasoning depth.
-- max: Maximum reasoning depth.
 
-Prohibited child reasoning efforts: ultra.
+Prohibited child reasoning efforts: max, ultra.
 
 Set agent_type when a suitable declared role exists; omit it otherwise. On MultiAgent V2, also set task_name (lowercase letters, digits, and underscores only) and fork_turns="none" for independent work or a positive integer string for limited recent context; do not use full-history all with explicit routing. On stable MultiAgent V1, leave fork_context false or omitted; do not spawn full-history forks with explicit routing. Do not omit routed fields or silently rewrite them."""
     )

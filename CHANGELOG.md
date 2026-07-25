@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.8 — 2026-07-25
+
+### Changed
+
+- Child reasoning effort `max` (the gpt-5.6 top tier) is now prohibited
+  alongside legacy `ultra`, and `max` is removed from the supported child
+  effort catalog. The top reasoning tier stays parent-only; the previous
+  `ultra`-only wording predated the gpt-5.6 tier naming and let `max`
+  children through.
+
 ## 0.1.4 — 2026-07-13
 
 ### Added

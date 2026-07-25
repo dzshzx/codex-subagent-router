@@ -106,7 +106,8 @@ def test_startup_session_document_returns_derived_routing_guidance() -> None:
     assert "Models:" in context
     assert "gpt-5.6-luna" in context
     assert "Reasoning efforts:" in context
-    assert "max: Maximum reasoning depth." in context
+    assert "xhigh: Extra-high reasoning depth." in context
+    assert "max: Maximum reasoning depth." not in context
 
 
 def test_non_startup_session_document_has_no_output() -> None:
@@ -194,7 +195,7 @@ def test_command_process_writes_a_denial_only_to_stdout() -> None:
             "session-start",
             _session_start_document("startup"),
             "SessionStart",
-            "Prohibited child reasoning efforts: ultra.",
+            "Prohibited child reasoning efforts: max, ultra.",
         ),
         (
             "subagent-start",

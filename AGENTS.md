@@ -103,7 +103,8 @@ deny-only `PreToolUse` validator、start-context handlers、隔离端到端探�
 
 ## 硬性策略约束
 
-- child reasoning effort `ultra` 被 `validate_routed_compute()` 禁止；专门的
+- child reasoning effort `max`（gpt-5.6 顶档）与旧顶档 `ultra` 都被
+  `validate_routed_compute()` 禁止（最高档仅父会话可用）；专门的
   `PolicyViolation` 文案属于受测试保护的行为。
 - 协议输出必须从唯一策略事实源派生，不得复制 model/effort catalog 或
   增加固定配对 allowlist。

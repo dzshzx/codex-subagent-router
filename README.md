@@ -119,10 +119,10 @@ them and never guesses or rewrites them.
 | `medium` | Medium reasoning depth. |
 | `high` | High reasoning depth. |
 | `xhigh` | Extra-high reasoning depth. |
-| `max` | Maximum reasoning depth. |
 
-Any supported model may be combined with any supported effort. `xhigh` and
-`max` have no extra justification requirement; child effort `ultra` remains
+Any supported model may be combined with any supported effort. `xhigh` has no
+extra justification requirement; the top reasoning tiers stay parent-only —
+child effort `max` (the gpt-5.6 top tier) and legacy `ultra` are both
 prohibited.
 
 ## Generated skill document and usage report
@@ -519,7 +519,7 @@ git diff --check
 
 ## Prohibitions
 
-- Child reasoning effort `ultra` is prohibited.
+- Child reasoning efforts `max` and `ultra` are prohibited.
 - Tests and package imports must not read or modify user-level Codex configuration.
 - Repository code must not contain machine-specific absolute paths.
 - Runtime policy code must not add hidden fallbacks or duplicate policy sources.

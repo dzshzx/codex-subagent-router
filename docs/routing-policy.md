@@ -24,7 +24,6 @@ identities.
 | `medium` | Medium reasoning depth |
 | `high` | High reasoning depth |
 | `xhigh` | Extra-high reasoning depth |
-| `max` | Maximum reasoning depth |
 
 Every listed model may be combined with every listed effort. The catalogs state
 runtime-supported choices and option descriptions, not pre-bound profiles. The
@@ -79,8 +78,9 @@ present; managed identity selection belongs to the start-context stage.
 
 ## Prohibitions
 
-- Child reasoning effort `ultra` is prohibited.
-- `xhigh` and `max` have no extra justification requirement.
+- Child reasoning efforts `max` (the gpt-5.6 top tier) and legacy `ultra` are
+  prohibited; the top tier stays parent-only.
+- `xhigh` has no extra justification requirement.
 - Unknown model and effort values are rejected explicitly.
 - No hidden fallback may replace a missing or invalid decision.
 - No Hook may infer complexity from `task_name` and silently change compute.

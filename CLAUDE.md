@@ -45,7 +45,7 @@ hook JSON protocol、deny-only `PreToolUse` 校验、启动 context、隔离端�
 
 ## 硬性约束
 
-- child reasoning effort `ultra` 被禁止（`validate_routed_compute()` 对其有专门报错，测试锁定该文案）；不得复制 model/effort catalog 或增加固定配对 allowlist。
+- child reasoning effort `max`（gpt-5.6 顶档）与旧顶档 `ultra` 都被禁止（`validate_routed_compute()` 对两者有专门报错，测试锁定该文案；最高档仅父会话可用）；不得复制 model/effort catalog 或增加固定配对 allowlist。
 - managed identity 合同/description 只能来自 `roles.py`；Hook event、matcher、timeout 与 handler 元数据只能来自 `hook_specs.py`。安装输出必须从这两个事实源派生，不复制角色表或 Hook 表。
 - 所有安装 Python API 与 CLI 调用必须显式传入 `codex_home`；测试、包导入和命令不得隐式读取或修改 `~/.codex`。
 - 安装与回滚必须可恢复，并对 unsafe path（包括 symlink 和非普通文件）、损坏或不一致的 receipt/journal、并发 operation lock、不兼容配置和用户后续修改 fail closed。不得静默接管既有兼容条目或覆盖不健康状态。

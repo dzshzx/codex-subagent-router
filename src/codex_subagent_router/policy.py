@@ -72,12 +72,9 @@ _ROUTING_POLICY = RoutingPolicy(
             reasoning_effort="xhigh",
             description="Extra-high reasoning depth.",
         ),
-        EffortOption(
-            reasoning_effort="max",
-            description="Maximum reasoning depth.",
-        ),
     ),
-    prohibited_efforts=("ultra",),
+    # gpt-5.6 顶档 max 与旧顶档 ultra 都是合法 wire 值；child 一律不用最高档。
+    prohibited_efforts=("max", "ultra"),
 )
 _SUPPORTED_MODELS = frozenset(guide.model for guide in _ROUTING_POLICY.models)
 _SUPPORTED_CHILD_EFFORTS = frozenset(
