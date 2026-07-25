@@ -4,6 +4,13 @@
 [![PyPI](https://img.shields.io/pypi/v/codex-subagent-router)](https://pypi.org/project/codex-subagent-router/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
+> **Status: retired (2026-07-25).** The hook-based enforcement approach was
+> abandoned in favor of a plain agent-skill document, so the routing contract
+> is now maintained directly as markdown and this package is no longer
+> developed. Published PyPI releases remain available as-is; no further
+> releases are planned. The research notes under `docs/` remain useful as
+> historical references on the Codex spawn contract.
+
 `codex-subagent-router` is an independent Python project for developing and
 validating model, effort, role, and context-routing policy for Codex subagents.
 
