@@ -13,7 +13,7 @@ license-files = ["LICENSE"]
 authors = [{ name = "dzshzx", email = "22311806+dzshzx@users.noreply.github.com" }]
 keywords = ["codex", "hooks", "subagent", "routing", "policy"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 7 - Inactive",
     "Environment :: Console",
     "Intended Audience :: Developers",
     "Operating System :: POSIX",

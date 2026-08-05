@@ -1,5 +1,9 @@
 # Routing policy
 
+> Historical contract for the retired `codex-subagent-router` package. Current
+> routing guidance lives in
+> [`codex-subagent-routing`](https://github.com/dzshzx/agent-skills/blob/HEAD/skills/codex-subagent-routing/SKILL.md).
+
 ## Purpose
 
 This document defines the supported route options and validation contract.

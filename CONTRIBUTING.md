@@ -1,5 +1,12 @@
 # Contributing
 
+> **Retired repository.** Development and releases ended on 2026-07-25. The
+> current routing contract is maintained in
+> [`codex-subagent-routing`](https://github.com/dzshzx/agent-skills/blob/HEAD/skills/codex-subagent-routing/SKILL.md).
+> This file is retained only to explain how the frozen source was verified;
+> keep changes here to archival corrections and route active guidance changes
+> to the maintained skill.
+
 ## Code standards
 
 - Support Python 3.11 and newer.

@@ -1,7 +1,9 @@
 # Subagent Routing
 
-This context describes how the router distinguishes persistent kinds of
+This historical context describes how the retired router distinguished persistent kinds of
 delegated work from one-off task instructions and per-task compute choices.
+The maintained routing contract now lives in
+[`codex-subagent-routing`](https://github.com/dzshzx/agent-skills/blob/HEAD/skills/codex-subagent-routing/SKILL.md).
 
 ## Language
 

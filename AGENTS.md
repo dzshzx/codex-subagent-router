@@ -2,6 +2,14 @@
 
 本文件为 Codex 在本仓库工作时提供项目级指引。
 
+## 仓库状态
+
+本项目已于 2026-07-25 退役并迁入 `workspace-archive`。现役路由合同由
+[`codex-subagent-routing`](https://github.com/dzshzx/agent-skills/blob/HEAD/skills/codex-subagent-routing/SKILL.md)
+维护；本仓只保留未发布的 `0.1.8` 源码、历史证据与已发布版本的说明。
+不要从本仓恢复 Hook 安装、增加 Codex 兼容性声明或发布新版本。以下命令与
+架构说明仅用于复核历史源码；退役边界以 `README.md` 为准。
+
 ## 常用命令
 
 环境由 `uv` 管理（Python 3.11+、`src/` 布局、无运行时依赖）：
@@ -28,7 +36,7 @@ git diff --check
 
 ## 架构与项目结构
 
-本仓库用于开发 Codex 子代理的 model、effort、role 和 context 路由策略。
+本仓库曾用于开发 Codex 子代理的 model、effort、role 和 context 路由策略。
 阶段 1–6 已全部交付：稳定 policy seam、严格 hook JSON protocol、
 deny-only `PreToolUse` validator、start-context handlers、隔离端到端探针，
 以及显式的用户级安装、状态查询与可恢复回滚工具。阶段划分见 `README.md`，

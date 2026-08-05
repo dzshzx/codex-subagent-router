@@ -1,5 +1,9 @@
 # Subagent identity roster
 
+> Historical contract for the retired `codex-subagent-router` package. Current
+> routing guidance lives in
+> [`codex-subagent-routing`](https://github.com/dzshzx/agent-skills/blob/HEAD/skills/codex-subagent-routing/SKILL.md).
+
 ## Purpose
 
 Subagent identity expresses a stable kind of work. Model and reasoning effort are

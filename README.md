@@ -6,15 +6,17 @@
 
 > **Status: retired (2026-07-25).** The hook-based enforcement approach was
 > abandoned in favor of a plain agent-skill document, so the routing contract
-> is now maintained directly as markdown and this package is no longer
-> developed. Published PyPI releases remain available as-is; no further
-> releases are planned. The research notes under `docs/` remain useful as
-> historical references on the Codex spawn contract.
+> is now maintained in
+> [`codex-subagent-routing`](https://github.com/dzshzx/agent-skills/blob/HEAD/skills/codex-subagent-routing/SKILL.md)
+> and this package is no longer developed. PyPI `0.1.3` remains available as-is;
+> no further releases are planned. This repository preserves the unreleased
+> `0.1.8` source and its research notes as historical evidence. Do not use the
+> package or the compatibility tables below as current Codex routing guidance.
 
-`codex-subagent-router` is an independent Python project for developing and
+`codex-subagent-router` was an independent Python project for developing and
 validating model, effort, role, and context-routing policy for Codex subagents.
 
-The repository currently provides the policy seam; strict JSON value
+The frozen source provides the policy seam; strict JSON value
 types for the `PreToolUse`, `SessionStart`, and `SubagentStart` hook boundaries;
 and deny-only validation for routed `spawn_agent` calls. Root-session routing
 guidance, managed subagent role-context handlers, and executable JSON command
